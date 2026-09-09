@@ -48,6 +48,7 @@ header>*{position:relative}
 .grow{flex:1}
 .speed{display:flex;gap:5px}
 .speed button{border-radius:50%;width:36px;min-height:36px;padding:0;font-size:13px}
+#btn-mute{font-size:16px} #btn-mute.off{opacity:.55;filter:saturate(.4)}
 #main{display:grid;grid-template-columns:1fr 400px;min-height:0}
 #scene{position:relative;min-height:0;background:#0b1520;box-shadow:inset 0 0 40px rgba(0,0,0,.6)}
 canvas{display:block;width:100%;height:100%}
@@ -194,6 +195,7 @@ canvas{display:block;width:100%;height:100%}
       <button class="small" data-speed="2">2×</button>
       <button class="small" data-speed="4">4×</button>
       <button class="small" id="btn-help" title="How to play">?</button>
+      <button class="small" id="btn-mute" title="Sound on/off (M)">&#9834;</button>
     </div>
   </header>
   <div id="main">
@@ -221,6 +223,163 @@ canvas{display:block;width:100%;height:100%}
 
 <script>
 'use strict';
+// =====================================================================
+//  SOUND — everything is synthesised with WebAudio at runtime (no audio
+//  files, no CDN). Sfx.play(name) is throttled per name and capped at
+//  MAX_VOICES so bursts at 4x speed never stack. The AudioContext is
+//  created lazily on the first pointer/key gesture. Ambient layers (river
+//  bed, storm rumble + rain, music-box motif) are driven by Sfx.tick()
+//  from the frame loop. Every method is a no-op when WebAudio is missing
+//  (the headless balance bot).
+// =====================================================================
+const MUTE_KEY='damclan-mute';
+const Sfx={
+  ok:typeof AudioContext!=='undefined'||typeof webkitAudioContext!=='undefined',
+  ctx:null, master:null, sfx:null, amb:null, muted:false, volSfx:0.4, volAmb:0.15,
+  MAX_VOICES:8, GAP_MS:80, voices:0, last:{}, bufs:{}, layers:{}, stormOn:false, quiet:false, nextNote:0, noteIdx:0,
+  init(){
+    if(this.ctx||!this.ok)return;
+    const AC=typeof AudioContext!=='undefined'?AudioContext:webkitAudioContext;
+    try{ this.ctx=new AC(); }catch(e){ this.ok=false; return; }
+    const c=this.ctx;
+    this.master=c.createGain(); this.master.gain.value=this.muted?0:1; this.master.connect(c.destination);
+    this.sfx=c.createGain(); this.sfx.gain.value=this.volSfx; this.sfx.connect(this.master);
+    this.amb=c.createGain(); this.amb.gain.value=this.volAmb; this.amb.connect(this.master);
+    this.startRiver(); this.nextNote=c.currentTime+3;
+  },
+  // call from a user gesture: creates the context on first use and resumes it (browsers start it suspended)
+  unlock(){ if(!this.ok||(this.muted&&!this.ctx))return; this.init(); if(this.ctx&&!this.muted&&this.ctx.state!=='running')this.ctx.resume().catch(()=>{}); },
+  setMuted(m){
+    this.muted=!!m; try{localStorage.setItem(MUTE_KEY,this.muted?'1':'0')}catch(e){}
+    if(!this.muted)this.unlock();
+    if(this.master){ const t=this.ctx.currentTime; this.master.gain.cancelScheduledValues(t); this.master.gain.setTargetAtTime(this.muted?0:1,t,0.04);
+      if(this.muted)setTimeout(()=>{ if(this.muted&&this.ctx)this.ctx.suspend().catch(()=>{}); },300); }
+    renderMute();
+  },
+  play(name,opt){
+    const c=this.ctx; if(!c||this.muted||c.state!=='running')return;
+    const fx=this.FX[name]; if(!fx)return;
+    const now=performance.now(), gap=fx.gap||this.GAP_MS;
+    if(now-(this.last[name]||-1e9)<gap||this.voices>=this.MAX_VOICES)return;
+    this.last[name]=now; this.voices++;
+    let dur=0.3; try{ dur=fx.fn.call(this,c.currentTime+0.005,opt||{})||dur; }catch(e){ console.error('sfx',name,e); }
+    setTimeout(()=>{ this.voices=Math.max(0,this.voices-1); },dur*1000);
+  },
+  // ---- building blocks. Every voice ends in its own envelope gain (_env) on the sfx bus unless told otherwise.
+  _r(a,b){ return a+Math.random()*(b-a); },
+  _env(t,a,d,peak,bus,sus,rel){ // attack a; then either decay d, or hold sus and release rel
+    const gn=this.ctx.createGain(), p=gn.gain; p.setValueAtTime(0.0001,t); p.linearRampToValueAtTime(peak,t+a);
+    if(sus!=null){ p.setValueAtTime(peak,t+a+sus); p.exponentialRampToValueAtTime(0.0001,t+a+sus+rel); } else p.exponentialRampToValueAtTime(0.0001,t+a+d);
+    gn.connect(bus||this.sfx); return gn; },
+  _osc(type,f0,t,f1,dur){ const o=this.ctx.createOscillator(); o.type=type; o.frequency.setValueAtTime(f0,t); if(f1&&dur)o.frequency.exponentialRampToValueAtTime(f1,t+dur); return o; },
+  _filt(type,f0,q,t,f1,dur){ const f=this.ctx.createBiquadFilter(); f.type=type; f.Q.value=q||1; if(t!=null){ f.frequency.setValueAtTime(f0,t); if(f1&&dur)f.frequency.exponentialRampToValueAtTime(f1,t+dur); } else f.frequency.value=f0; return f; },
+  _buf(kind){ // 2 s of white / pink / brown noise, generated once
+    if(this.bufs[kind])return this.bufs[kind]; const c=this.ctx, n=c.sampleRate*2, b=c.createBuffer(1,n,c.sampleRate), d=b.getChannelData(0);
+    let b0=0,b1=0,b2=0,br=0;
+    for(let i=0;i<n;i++){ const w=Math.random()*2-1;
+      if(kind==='white')d[i]=w;
+      else if(kind==='brown'){ br=(br+0.02*w)/1.02; d[i]=br*3.5; }
+      else { b0=0.99765*b0+w*0.0990460; b1=0.96300*b1+w*0.2965164; b2=0.57000*b2+w*1.0526913; d[i]=(b0+b1+b2+w*0.1848)*0.11; } }
+    this.bufs[kind]=b; return b; },
+  _noise(kind){ const s=this.ctx.createBufferSource(); s.buffer=this._buf(kind); return s; },
+  _burst(kind,t,dur,filt,env){ const n=this._noise(kind); n.connect(filt); filt.connect(env); n.start(t); n.stop(t+dur); return n; },
+  _tone(type,f0,t,dur,env,f1){ const o=this._osc(type,f0,t,f1,dur); o.connect(env); o.start(t); o.stop(t+dur+0.05); return o; },
+  _lfo(freq,depth,param,t){ const o=this._osc('sine',freq,t), gn=this.ctx.createGain(); gn.gain.value=depth; o.connect(gn); gn.connect(param); o.start(t); return o; },
+  // ---- one-shot effects. fn(t,opt) schedules at context time t and returns its length in seconds. gap = per-name throttle in ms.
+  FX:{
+    // gnawing: two quick filtered-noise scrapes over a low wood thump
+    chomp:{fn(t){ const k=this._r(0.9,1.15);
+      for(let i=0;i<2;i++){ const t0=t+i*0.07; this._burst('white',t0,0.1,this._filt('bandpass',1400*k,2,t0,600*k,0.07),this._env(t0,0.004,0.06,0.5)); }
+      this._tone('sine',150*k,t,0.14,this._env(t,0.005,0.13,0.5),55); return 0.25; }},
+    // builder's tap: a click of noise plus a short woody tock
+    hammer:{fn(t){ const k=this._r(0.9,1.1);
+      this._burst('white',t,0.06,this._filt('highpass',2500,1),this._env(t,0.002,0.03,0.3));
+      this._tone('triangle',420*k,t,0.1,this._env(t,0.002,0.09,0.4),300*k); return 0.15; }},
+    // water hitting the dam (opt.big for floods and wrecked sections)
+    splash:{gap:700,fn(t,o){ const b=o.big?1.5:1;
+      this._burst('white',t,0.5*b,this._filt('bandpass',900,0.8,t,250,0.35*b),this._env(t,0.012,0.35*b,0.45));
+      this._tone('sine',300,t,0.16,this._env(t,0.004,0.15,0.25),90); return 0.5*b; }},
+    wave:{gap:400,fn(t){ return this.FX.splash.fn.call(this,t,{big:true}); }},
+    // a small plop: a builder dropping wood at the water's edge
+    plop:{gap:250,fn(t){ const k=this._r(0.8,1.2);
+      this._tone('sine',420*k,t,0.14,this._env(t,0.004,0.12,0.25),140*k);
+      this._burst('white',t,0.15,this._filt('bandpass',1800*k,1.5,t,500,0.12),this._env(t,0.01,0.12,0.15)); return 0.2; }},
+    // a gatherer dropping a load at the lodge: soft thud
+    drop:{gap:250,fn(t){ const k=this._r(0.9,1.1);
+      this._burst('brown',t,0.12,this._filt('lowpass',500,0.8),this._env(t,0.004,0.1,0.35));
+      this._tone('sine',120*k,t,0.12,this._env(t,0.004,0.1,0.25),70); return 0.15; }},
+    // tree felling: rising whoosh, then the trunk lands as the 1.1 s topple animation finishes
+    fell:{gap:300,fn(t){
+      this._burst('pink',t,1,this._filt('bandpass',250,1.2,t,1600,0.8),this._env(t,0.35,0.55,0.4));
+      const t1=t+0.95; this._tone('sine',110,t1,0.3,this._env(t1,0.006,0.3,0.6),38);
+      this._burst('brown',t1,0.3,this._filt('lowpass',400,0.7),this._env(t1,0.005,0.25,0.5)); return 1.3; }},
+    // lightning: a sharp crack and a rolling low tail
+    crack:{gap:400,fn(t){
+      this._burst('white',t,0.55,this._filt('highpass',1200,0.7,t,300,0.5),this._env(t,0.003,0.5,0.55));
+      this._burst('brown',t+0.15,1.9,this._filt('lowpass',160,0.8),this._env(t+0.15,0.2,1.6,0.8)); return 2; }},
+    // raid horn: two brassy notes (detuned squares through a lowpass); opt.far for the scouts' warning
+    horn:{gap:1500,fn(t,o){ const far=o.far?0.5:1; let t0=t;
+      for(const [f,d] of [[196,0.28],[261.6,0.55]]){ const env=this._env(t0,0.03,0,0.2*far,null,d-0.12,0.25), lp=this._filt('lowpass',1400*far,1.5); lp.connect(env);
+        for(const det of [-7,6]){ const osc=this._osc('square',f,t0); osc.detune.value=det; osc.connect(lp); osc.start(t0); osc.stop(t0+d+0.3); } t0+=d; }
+      return 1.2; }},
+    // monster (or bear with opt.pitch): FM growl that sags in pitch, with a breathy layer
+    growl:{gap:1500,fn(t,o){ const p=o.pitch||1, c=this.ctx;
+      const car=this._osc('triangle',75*p,t,48*p,1), mod=this._osc('sine',21,t,14,1), mg=c.createGain(); mg.gain.setValueAtTime(90*p,t); mg.gain.linearRampToValueAtTime(30*p,t+1); mod.connect(mg); mg.connect(car.frequency);
+      const lp=this._filt('lowpass',500*p,2), env=this._env(t,0.12,0,0.5,null,0.5,0.45); car.connect(lp); lp.connect(env); mod.start(t); car.start(t); mod.stop(t+1.2); car.stop(t+1.2);
+      this._burst('brown',t,1.2,this._filt('bandpass',220*p,1.2),this._env(t,0.15,0,0.3,null,0.45,0.4)); return 1.2; }},
+    // river dammed: rising major arpeggio with a shimmering top
+    win:{gap:3000,fn(t){ const c=this.ctx;
+      [523.25,659.25,783.99].forEach((f,i)=>{ const t0=t+i*0.14; this._tone('triangle',f,t0,1.5,this._env(t0,0.01,1.4,0.32)); this._tone('sine',f*2,t0,0.9,this._env(t0,0.01,0.8,0.07)); });
+      const t1=t+0.45, trem=c.createGain(); trem.gain.value=1; this._lfo(7,0.5,trem.gain,t1);
+      const env=this._env(t1,0.3,1.8,0.1); trem.connect(env); const sh=this._osc('sine',2093,t1); sh.connect(trem); sh.start(t1); sh.stop(t1+2.2); return 2.6; }},
+    // a section finished: wood-block clunk
+    clunk:{gap:300,fn(t){
+      this._tone('triangle',160,t,0.25,this._env(t,0.004,0.22,0.5),95);
+      this._burst('white',t,0.08,this._filt('lowpass',900,1),this._env(t,0.002,0.05,0.3)); return 0.3; }},
+    // research bought, purchase, reward: two-note chime
+    coin:{gap:150,fn(t){ [[988,0],[1319,0.07]].forEach(([f,d])=>this._tone('sine',f,t+d,0.4,this._env(t+d,0.005,0.35,0.28))); return 0.5; }},
+    // any button press
+    click:{gap:40,fn(t){
+      this._tone('sine',1900,t,0.03,this._env(t,0.001,0.025,0.16),1200);
+      this._burst('white',t,0.03,this._filt('highpass',3000,1),this._env(t,0.001,0.015,0.1)); return 0.05; }},
+    // action refused
+    buzz:{gap:200,fn(t){ const lp=this._filt('lowpass',700,1), env=this._env(t,0.01,0,0.2,null,0.12,0.08); lp.connect(env);
+      for(const f of [110,116]){ const osc=this._osc('square',f,t); osc.connect(lp); osc.start(t); osc.stop(t+0.25); } return 0.25; }},
+    // moving upstream
+    whoosh:{gap:500,fn(t){ this._burst('pink',t,1,this._filt('bandpass',300,1.2,t,2200,0.7),this._env(t,0.3,0.6,0.35)); return 1; }},
+  },
+  // ---- ambient layers (all on the amb bus)
+  startRiver(){ const c=this.ctx, t=c.currentTime;
+    // river bed: looping pink noise through a lowpass whose cutoff wanders slowly, plus a faint high trickle
+    const g=c.createGain(); g.gain.setValueAtTime(0,t); g.gain.setTargetAtTime(0.9,t,1.5); g.connect(this.amb);
+    const lp=this._filt('lowpass',600,0.8); this._lfo(0.11,250,lp.frequency,t); this._lfo(0.07,0.12,g.gain,t);
+    const n=this._noise('pink'); n.loop=true; n.connect(lp); lp.connect(g); n.start(t);
+    const bp=this._filt('bandpass',3200,0.6), hg=c.createGain(); hg.gain.value=0.12; this._lfo(0.19,0.06,hg.gain,t);
+    const n2=this._noise('white'); n2.loop=true; n2.connect(bp); bp.connect(hg); hg.connect(g); n2.start(t);
+    this.layers.river={g}; },
+  setStorm(on){ if(!this.ctx||on===this.stormOn)return; this.stormOn=on; const c=this.ctx, t=c.currentTime;
+    if(!this.layers.storm){ // brown-noise rumble that swells on a slow LFO, and a rain hiss above it
+      const rg=c.createGain(); rg.gain.value=0; rg.connect(this.amb); const lp=this._filt('lowpass',140,0.8), sw=c.createGain(); sw.gain.value=0.7; this._lfo(0.21,0.4,sw.gain,t);
+      const n=this._noise('brown'); n.loop=true; n.connect(lp); lp.connect(sw); sw.connect(rg); n.start(t);
+      const hg=c.createGain(); hg.gain.value=0; hg.connect(this.amb); const hp=this._filt('highpass',1800,0.7), bp=this._filt('bandpass',5200,0.5);
+      const n2=this._noise('white'); n2.loop=true; n2.connect(hp); hp.connect(bp); bp.connect(hg); n2.start(t);
+      this.layers.storm={rg,hg}; }
+    const L=this.layers.storm; L.rg.gain.cancelScheduledValues(t); L.hg.gain.cancelScheduledValues(t);
+    L.rg.gain.setTargetAtTime(on?1:0,t,on?1.5:1); L.hg.gain.setTargetAtTime(on?0.3:0,t,on?2:1.2); },
+  // called every frame; st = {paused, storm}
+  tick(st){ const c=this.ctx; if(!c||c.state!=='running')return; const t=c.currentTime;
+    this.setStorm(!!st.storm);
+    if(!!st.paused!==this.quiet&&this.layers.river){ this.quiet=!!st.paused; this.layers.river.g.gain.setTargetAtTime(this.quiet?0.3:0.9,t,0.6); }
+    if(t>=this.nextNote){ this.note(t); this.nextNote=t+6+Math.random()*4; } },
+  // sparse music box: one note of a four-note pentatonic motif every 6-10 s, long release
+  note(t){ const f=[523.25,659.25,783.99,587.33][this.noteIdx++%4];
+    this._tone('triangle',f,t,3,this._env(t,0.02,2.8,0.3,this.amb)); this._tone('sine',f*3,t,1.4,this._env(t,0.02,1.2,0.05,this.amb)); },
+};
+try{ Sfx.muted=localStorage.getItem(MUTE_KEY)==='1'; }catch(e){}
+window.addEventListener('pointerdown',()=>Sfx.unlock(),{passive:true});
+window.addEventListener('keydown',()=>Sfx.unlock());
+if(typeof document!=='undefined'&&document.addEventListener)document.addEventListener('visibilitychange',()=>{ if(!Sfx.ctx)return; if(document.hidden)Sfx.ctx.suspend().catch(()=>{}); else if(!Sfx.muted)Sfx.ctx.resume().catch(()=>{}); });
+if(typeof window!=='undefined')window.Sfx=Sfx; // debugging: Sfx.play('win'), Sfx.setMuted(true)
 // =====================================================================
 //  DATA
 // =====================================================================
@@ -328,7 +487,7 @@ const Ads={
   showRewarded(label,onReward){
     if(this.provider==='native'){ const ws=g.speed; g.speed=0; window.Native.showRewarded().then(ok=>{ if(ok)onReward(); else log('Ad not completed: no reward this time.','info'); }).finally(()=>{ g.speed=ws||1; dirty=true; }); return; }
     this._mock('Rewarded ad: '+label,5,null,onReward); },
-  _grant(){ this.premium=true; try{localStorage.setItem(PREMIUM_KEY,'1')}catch(e){} log('Ads removed. Thank you for supporting the clan!','good'); dirty=true; },
+  _grant(){ this.premium=true; try{localStorage.setItem(PREMIUM_KEY,'1')}catch(e){} log('Ads removed. Thank you for supporting the clan!','good'); Sfx.play('coin'); dirty=true; },
   buyPremium(){ if(this.provider==='native'){ window.Native.buyPremium().then(ok=>{ if(ok)this._grant(); else { log('Purchase not completed.','info'); dirty=true; } }); return; } this._mock('Store purchase: Remove ads (£2.99)',0,null,()=>this._grant()); },
   restore(){ if(this.provider==='native'){ window.Native.restore().then(ok=>{ if(ok)this._grant(); else { log('No previous purchase found.','info'); dirty=true; } }); return; } this.init(); log(this.premium?'Purchase restored: ads are off.':'No previous purchase found.','info'); dirty=true; },
   // Mock overlay for the web build. seconds>0 = countdown before the button enables.
@@ -337,13 +496,13 @@ const Ads={
     const render=()=>{ ov.innerHTML='<div class="box"><span class="tag">MOCK · web build</span><h1>'+title+'</h1><p>'+(onReward&&seconds>0?'In the app this is a real video. Watch it through to earn the reward.':onReward?'In the app this opens the store sheet.':'In the app this is a real ad between rivers. Ad-free players never see it.')+'</p><div class="btns">'+(left>0?'<button disabled>'+left+'s</button>':'<button class="primary" id="ad-ok">'+(onReward?(seconds>0?'Claim reward':'Confirm purchase'):'Continue')+'</button>')+(onReward?'<button id="ad-x">Cancel</button>':'')+'</div></div>'; ov.hidden=false;
       const ok=$('#ad-ok'); if(ok)ok.onclick=()=>{ ov.hidden=true; g.speed=wasSpeed||1; if(onReward)onReward(); if(onDone)onDone(); dirty=true; };
       const x=$('#ad-x'); if(x)x.onclick=()=>{ ov.hidden=true; g.speed=wasSpeed||1; dirty=true; }; };
-    render(); const tick=setInterval(()=>{ left--; if(left<=0){clearInterval(tick);} render(); },1000); if(seconds<=0)render();
+    render(); if(seconds>0){ const tick=setInterval(()=>{ if(ov.hidden){clearInterval(tick);return;} left--; if(left<=0)clearInterval(tick); render(); },1000); }
   }
 };
 // Rewarded offers the game can make. Each is a genuine shortcut, never required to progress.
 let boostDays=0, lastBoostDay=-99, lostSections=[];
-function offerBoost(){ Ads.showRewarded('two days of double gathering',()=>{ boostDays=2; lastBoostDay=g.day; log('Boost! Gathering is doubled for two days.','good'); }); }
-function offerRecover(){ if(!lostSections.length)return; Ads.showRewarded('recover '+lostSections.length+' washed-away section'+(lostSections.length>1?'s':''),()=>{ for(const sec of lostSections){ if(g.sections.length<river().width)g.sections.push({type:sec.type,progress:0.5,hp:0,wrecked:false}); } log(lostSections.length+' sections recovered half-built.','good'); lostSections=[]; }); }
+function offerBoost(){ Ads.showRewarded('two days of double gathering',()=>{ boostDays=2; lastBoostDay=g.day; log('Boost! Gathering is doubled for two days.','good'); Sfx.play('coin'); }); }
+function offerRecover(){ if(!lostSections.length)return; Ads.showRewarded('recover '+lostSections.length+' washed-away section'+(lostSections.length>1?'s':''),()=>{ for(const sec of lostSections){ if(g.sections.length<river().width)g.sections.push({type:sec.type,progress:0.5,hp:0,wrecked:false}); } log(lostSections.length+' sections recovered half-built.','good'); lostSections=[]; Sfx.play('coin'); }); }
 
 // =====================================================================
 //  STATE
@@ -388,7 +547,7 @@ const housing=()=>g.lodges*((has('lodge2')?6:4)+(has('legacy')?2:0));
 const storeCap=()=>has('cache')?150:100;
 const storage=()=>BASE_STORAGE+(g.stores||0)*storeCap();
 const storeCost=()=>{ const n=g.stores||0; const c={wood:50+30*n}; if(has('mudpack'))c.mud=15+10*n; return c; };
-function buildStore(){ const c=storeCost(); if(!canAfford(c))return; pay(c); g.stores=(g.stores||0)+1; log('A new store is dug. Capacity: '+storage()+' of each material.','good'); dirty=true; }
+function buildStore(){ const c=storeCost(); if(!canAfford(c)){Sfx.play('buzz');return} pay(c); g.stores=(g.stores||0)+1; log('A new store is dug. Capacity: '+storage()+' of each material.','good'); dirty=true; }
 const assigned=()=>Object.values(g.jobs).reduce((a,b)=>a+b,0);
 const idle=()=>g.beavers-assigned();
 const lodgeCost=()=>({wood:40+20*(g.lodges-1)});
@@ -477,7 +636,7 @@ function simDay(){
     const need=(1-todo.progress)*t.work;
     const used=Math.min(work,need);
     todo.progress+=used/t.work; work-=used;
-    if(todo.progress>=0.999){todo.progress=1;todo.hp=t.hp;todo.wrecked=false;log('Section '+(g.sections.indexOf(todo)+1)+' ('+t.name+') finished.','good')}
+    if(todo.progress>=0.999){todo.progress=1;todo.hp=t.hp;todo.wrecked=false;log('Section '+(g.sections.indexOf(todo)+1)+' ('+t.name+') finished.','good');Sfx.play('clunk')}
   }
   g.repairStalled=null;
   if(work>0){
@@ -506,18 +665,19 @@ function simDay(){
   if(damReady()){
     g.hold+=clamp(damStrength()/R.req,0.3,1); // a leaky dam fills the pond slower
     if(g.hold<=1)log('The wall spans '+R.name+'. Hold it for '+holdNeed()+' days while the pond fills. Fish gather: foraging +30%.','good');
-    if(g.hold>=holdNeed()){ g.complete=true; g.morale=clamp(g.morale+20,0,100); log(R.name+' is dammed! The pond is full behind your wall.','good'); }
+    if(g.hold>=holdNeed()){ g.complete=true; g.morale=clamp(g.morale+20,0,100); log(R.name+' is dammed! The pond is full behind your wall.','good'); Sfx.play('win'); }
   } else if(g.hold>0){ g.hold=0; log('The dam weakened and the pond is draining. Repair it to start filling again.','warn'); }
   if(g.day%3===0)save();
 }
 function hurt(s,amount,source,raw){
   if(!raw){ amount/=SECTION_TYPES[s.type].armor; if(has('masonry')&&(s.type==='stone'||s.type==='log'))amount/=1.5; }
   s.hp-=amount;
-  if(s.hp<=0){ s.hp=0; s.progress=0; s.wrecked=true; log('Section '+(g.sections.indexOf(s)+1)+' was destroyed by '+source+'. It must be rebuilt.','bad'); g.morale=clamp(g.morale-5,0,100); }
+  if(s.hp<=0){ s.hp=0; s.progress=0; s.wrecked=true; log('Section '+(g.sections.indexOf(s)+1)+' was destroyed by '+source+'. It must be rebuilt.','bad'); g.morale=clamp(g.morale-5,0,100); Sfx.play('wave'); }
 }
 function damageDam(amount,source){
   const built=()=>g.sections.filter(s=>s.progress>=1);
   let hits=0;
+  if(amount>0&&built().length)Sfx.play('splash');
   while(amount>0&&built().length&&hits<4){
     const list=built(); const s=list[ri(0,list.length-1)];
     const chunk=Math.min(amount,Math.max(5,amount/2));
@@ -551,11 +711,12 @@ function startEvent(type,now){
   if((type==='storm'||type==='flood')&&has('scouts')&&!now&&!g.pendingWeather){ g.pendingWeather={type,days:2}; log('Scouts read the sky: a '+(type==='storm'?'storm':'flash flood')+' will hit in two days. Put builders on repair.','warn'); return; }
   switch(type){
     case 'raid':
-      if(has('scouts')&&!g.pending){ const d=has('alarm')?5:3; g.pending={type:'raid',days:d}; log('Scouts report a rival clan '+d+' days out. Post guards!','warn'); }
+      if(has('scouts')&&!g.pending){ const d=has('alarm')?5:3; g.pending={type:'raid',days:d}; log('Scouts report a rival clan '+d+' days out. Post guards!','warn'); Sfx.play('horn',{far:true}); }
       else resolveRaid();
       break;
-    case 'storm': g.events.push({type:'storm',days:Math.max(1,3+Math.floor(r/3)-(has('wardens')?1:0)),name:'Storm'}); log('A storm rolls in. Building slows and the water batters the dam.','warn'); break;
+    case 'storm': g.events.push({type:'storm',days:Math.max(1,3+Math.floor(r/3)-(has('wardens')?1:0)),name:'Storm'}); log('A storm rolls in. Building slows and the water batters the dam.','warn'); Sfx.play('crack'); break; // the rumble/rain bed starts and stops with the event via Sfx.tick
     case 'flood':{
+      Sfx.play('wave');
       const dmg=flowNow()*6*(1+0.1*r)*(has('channels')?0.5:1)*(has('wardens')?0.7:1);
       const weakest=g.sections.filter(x=>x.progress>=1).reduce((a,x)=>Math.min(a,SECTION_TYPES[x.type].armor),4);
       const breach=Math.min(0.6,0.2+0.08*r)/weakest*(has('channels')?0.5:1)*(has('spillway')?0.4:1); // weak walls breach; log walls a quarter as often
@@ -585,7 +746,7 @@ function startEvent(type,now){
     case 'tourists': g.events.push({type:'tourists',days:2+Math.floor(r/3),name:'Tourists on the bank'}); log('Tourists are wandering the bank taking photos. The beavers keep their heads down: building halves for two days.','warn'); break;
     case 'monster':{
       const def=jobPower('guard')*3.5*(has('sentries')?2:1); const dmg=Math.max(0,R.flow*(6+r)-def)*(has('channels')?0.7:1);
-      g.events.push({type:'monster',days:2,name:'River monster!'});
+      g.events.push({type:'monster',days:2,name:'River monster!'}); Sfx.play('growl');
       if(dmg<=0)log('A river monster surfaced below the dam, but your guards drove it off!','good');
       else { damageDam(dmg,'a river monster'); g.morale=clamp(g.morale-8,0,100); log('A river monster surfaced and tore at the dam!','bad'); }
       break;}
@@ -598,7 +759,7 @@ function startEvent(type,now){
     case 'gifts': g.res.food=Math.min(storage(),g.res.food+30+5*r); g.res.science+=15+3*r; log('Townsfolk left gifts by the bank: food and curious trinkets (+science).','good'); break;
     case 'fisher': g.events.push({type:'fisher',days:3,name:'Fishermen on the bank'}); log('Fishermen have set up on the bank. Builders keep their distance: building -30% for three days.','warn'); break;
     case 'ice': damageDam(R.flow*3*(has('wardens')?0.7:1),'an ice jam'); g.events.push({type:'ice',days:4,name:'Ice jam'}); log('An ice jam is grinding against the dam. Building slows for four days.','bad'); break;
-    case 'bear':{ const def=jobPower('guard')*3.5*(has('sentries')?2:1); const need=has('alarm')?4:8;
+    case 'bear':{ const def=jobPower('guard')*3.5*(has('sentries')?2:1); const need=has('alarm')?4:8; Sfx.play('growl',{pitch:1.5});
       if(def>=need){ log('A bear came sniffing at the lodges. The guards saw it off.','good'); }
       else { const f=Math.floor(g.res.food*0.3); g.res.food-=f; g.morale=clamp(g.morale-10,0,100); log('A bear tore into the lodges and ate '+f+' food.','bad'); }
       g.events.push({type:'bear',days:2,name:'Bear!'}); break; }
@@ -614,7 +775,7 @@ function resolveRaid(){
   const r=g.river;
   let strength=(4+r*4+rnd(0,2+r))*danger()*0.8*(rule().raidMult||1); if(has('scouts'))strength*=0.7;
   const defense=jobPower('guard')*3.5*(has('sentries')?2:1);
-  g.events.push({type:'raid',days:2,name:'Rival raid'});
+  g.events.push({type:'raid',days:2,name:'Rival raid'}); Sfx.play('horn');
   if(defense>=strength){
     const loot=10+5*r; g.res.wood=Math.min(storage(),g.res.wood+loot); g.morale=clamp(g.morale+5,0,100);
     log('Your guards repelled a rival raid and seized '+loot+' wood from the fleeing thieves.','good');
@@ -633,16 +794,16 @@ function setJob(id,d){
   else { const inJob=g.roster.filter(b=>b.job===id).sort((a,b)=>(a.xp[id]||0)-(b.xp[id]||0)); if(!inJob.length)return; inJob[0].job='idle'; }
   syncCounts(); dirty=true; }
 function addSection(){
-  const t=SECTION_TYPES[g.nextType]; if(g.sections.length>=river().width||!canAfford(t.cost))return;
+  const t=SECTION_TYPES[g.nextType]; if(g.sections.length>=river().width||!canAfford(t.cost)){Sfx.play('buzz');return}
   pay(t.cost); g.sections.push({type:g.nextType,progress:0,hp:0,wrecked:false}); dirty=true;
 }
 function rebuildSection(i){
-  const s=g.sections[i]; if(!s)return; const t=SECTION_TYPES[g.nextType]; if(!canAfford(t.cost))return;
+  const s=g.sections[i]; if(!s)return; const t=SECTION_TYPES[g.nextType]; if(!canAfford(t.cost)){Sfx.play('buzz');return}
   pay(t.cost); s.type=g.nextType; s.progress=0; s.hp=0; s.wrecked=false; g.complete=false; g.hold=0; dirty=true;
 }
-function buildLodge(){ const c=lodgeCost(); if(!canAfford(c))return; pay(c); g.lodges++; log('A new lodge is built. Housing: '+housing()+'.','good'); }
+function buildLodge(){ const c=lodgeCost(); if(!canAfford(c)){Sfx.play('buzz');return} pay(c); g.lodges++; log('A new lodge is built. Housing: '+housing()+'.','good'); }
 function sendExpedition(){
-  if(!has('expedition')||g.away||g.roster.length<8||!canAfford({food:20}))return;
+  if(!has('expedition')||g.away||g.roster.length<8||!canAfford({food:20})){Sfx.play('buzz');return}
   pay({food:20}); const pick=g.roster.slice().sort((a,b)=>(a.job==='idle'?0:1)-(b.job==='idle'?0:1)||Object.values(a.xp).reduce((x,y)=>x+y,0)-Object.values(b.xp).reduce((x,y)=>x+y,0)).slice(0,5);
   g.away={days:12,beavers:pick}; g.roster=g.roster.filter(b=>!pick.includes(b)); syncCounts();
   log('Five beavers set off upriver on an expedition. Back in 12 days.','good'); dirty=true;
@@ -658,17 +819,17 @@ function tickExpedition(){
 function foodBalance(){ return jobPower('forage')*3*mults().food-g.beavers*0.5; }
 function neediestJob(){ // where a newcomer helps most: food first, then the thinnest unlocked job
   if(foodBalance()<0.6)return 'forage';
-  const open=JOBS.filter(j=>!j.req||has(j.req)).filter(j=>j.id!=='guard'&&j.id!=='research');
+  const open=JOBS.filter(j=>!j.req||has(j.req)).filter(j=>j.id!=='guard'&&j.id!=='research'&&!(j.id==='stone'&&rule().noStone));
   return open.reduce((a,j)=>g.jobs[j.id]<g.jobs[a.id]?j:a,open[0]).id;
 }
 function canRecruit(){ return g.beavers<housing()&&canAfford(recruitCost())&&foodBalance()>=0.5; }
 function recruitBlock(){ if(g.beavers>=housing())return 'Lodges are full'; if(!canAfford(recruitCost()))return 'Not enough food'; if(foodBalance()<0.5)return 'Foragers can\'t feed another beaver'; return ''; }
-function recruit(){ if(!canRecruit())return; pay(recruitCost()); const job=neediestJob(); addBeaver(job); log('A new beaver is recruited and starts on '+JOBS.find(j=>j.id===job).name.toLowerCase()+'.','good'); }
+function recruit(){ if(!canRecruit()){Sfx.play('buzz');return} pay(recruitCost()); const job=neediestJob(); addBeaver(job); log('A new beaver is recruited and starts on '+JOBS.find(j=>j.id===job).name.toLowerCase()+'.','good'); }
 const researchCount=()=>Object.keys(g.research).length;
 function sciCost(r){ return Math.round(r.cost*Math.pow(1.1,researchCount())); }
 const TIER_NEED=[0,0,2,4]; const tierOpen=t=>g.damsBuilt>=TIER_NEED[t||1];
 function canResearch(r){ return !has(r.id)&&tierOpen(r.tier)&&!(r.req&&!has(r.req))&&g.res.science>=sciCost(r)&&canAfford(r.mat||{}); }
-function buy(id){ const r=RESEARCH.find(x=>x.id===id); if(!canResearch(r))return; g.res.science-=sciCost(r); pay(r.mat||{}); g.research[id]=true; log('Researched '+r.name+'.','good'); }
+function buy(id){ const r=RESEARCH.find(x=>x.id===id); if(!canResearch(r)){Sfx.play('buzz');return} g.res.science-=sciCost(r); pay(r.mat||{}); g.research[id]=true; log('Researched '+r.name+'.','good'); Sfx.play('coin'); }
 function nextRiver(){
   g.best=g.best||{}; const took=g.day-(g.riverStart||0); if(!g.best[g.river]||took<g.best[g.river])g.best[g.river]=took; g.riverStart=g.day;
   g.damsBuilt++; g.river++; g.sections=[]; g.sel=-1; g.complete=false; g.hold=0; g.forest=1; g.chop=0; g.pendingWeather=null; g.cooldown=8; g.events=[]; g.pending=null; lostSections=[];
@@ -678,7 +839,7 @@ function nextRiver(){
   if(ru.noStone)applyJobCounts(Object.assign({},g.jobs,{stone:0}));
   if(g.damsBuilt===TIER_NEED[2])log('Tier II research is open: new discoveries await in the Research tab.','good');
   if(g.damsBuilt===TIER_NEED[3])log('Tier III research is open.','good');
-  log('The clan moves upstream to '+R.name+': '+R.width+' sections wide, needs strength '+R.req+'.'+(ru.name?' '+ru.name+': '+ru.desc:''),'good'); save(); dirty=true;
+  log('The clan moves upstream to '+R.name+': '+R.width+' sections wide, needs strength '+R.req+'.'+(ru.name?' '+ru.name+': '+ru.desc:''),'good'); Sfx.play('whoosh'); save(); dirty=true;
 }
 function save(){ try{localStorage.setItem(SAVE_KEY,JSON.stringify(g))}catch(e){} }
 function load(){ try{const s=localStorage.getItem(SAVE_KEY); if(s){g=JSON.parse(s); g.hold=g.hold||0; if(g.forest==null)g.forest=1; if(!g.trees){ const n=Math.round(g.forest*FOREST_N); g.trees=Array.from({length:FOREST_N},(_,i)=>i<n?1:0.3); g.chop=0; } g.kitTimer=g.kitTimer||0; g.pendingWeather=g.pendingWeather||null; g.repairStalled=null; g.stores=g.stores||0; if(g.tut==null)g.tut=g.day>0?99:0; ensureRoster(); return true}}catch(e){} return false; }
@@ -900,7 +1061,12 @@ function renderTab(){
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{activeTab=b.dataset.tab;if(activeTab==='log')unread=0;dirty=true});
 document.querySelectorAll('[data-speed]').forEach(b=>b.onclick=()=>{g.speed=+b.dataset.speed;dirty=true});
 $('#btn-help').onclick=()=>{g.seenHelp=false;g.tut=Math.max(g.tut,0);dirty=true};
-window.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target.tagName!=='BUTTON'){e.preventDefault();g.speed=g.speed?0:1;dirty=true}});
+$('#btn-mute').onclick=()=>Sfx.setMuted(!Sfx.muted);
+function renderMute(){ const b=$('#btn-mute'); if(!b)return; b.textContent=Sfx.muted?'♪̸':'♪'; b.title='Sound '+(Sfx.muted?'off':'on')+' (M)'; b.classList.toggle('off',Sfx.muted); }
+renderMute();
+window.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target.tagName!=='BUTTON'){e.preventDefault();g.speed=g.speed?0:1;dirty=true} if(e.code==='KeyM'&&e.target.tagName!=='BUTTON')Sfx.setMuted(!Sfx.muted);});
+// one delegated listener gives every button (tabs, +/-, overlays, ad mock) the same soft click
+window.addEventListener('click',e=>{ const b=e.target&&e.target.closest?e.target.closest('button'):null; if(b&&!b.disabled)Sfx.play('click'); });
 
 // =====================================================================
 //  RENDER (canvas) — painted 2.5D scene. Front view from downstream.
@@ -1091,7 +1257,7 @@ function targetFor(job,i,G,variant){
   }
 }
 function syncActors(G){
-  while(actors.length<g.roster.length){ const i=actors.length; const [hx,hy]=homeFor(i,G); actors.push({x:hx,y:hy,face:1,bob:Math.random()*6,job:'idle',tier:0,state:'home',timer:Math.random()*6,alpha:0,variant:0,tx:hx,ty:hy,mode:'idle'}); }
+  while(actors.length<g.roster.length){ const i=actors.length; const [hx,hy]=homeFor(i,G); actors.push({x:hx,y:hy,face:1,bob:Math.random()*6,job:'idle',tier:0,state:'home',timer:Math.random()*6,alpha:0,variant:0,tx:hx,ty:hy,mode:'idle',sfx:Math.random()*1.2}); }
   while(actors.length>g.roster.length)actors.pop();
   g.roster.forEach((b,i)=>{ const a=actors[i]; a.tier=tierOf(b);
     if(a.job!==b.job){ a.job=b.job; a.variant=0; if(b.job==='idle'){ a.state='toHome'; const [hx,hy]=homeFor(i,G); a.tx=hx;a.ty=hy; } else { a.state='toWork'; [a.tx,a.ty]=targetFor(b.job,i,G,0); } } });
@@ -1103,12 +1269,14 @@ function updateActor(a,i,dt,G){
   switch(a.state){
     case 'toWork': a.alpha=Math.min(1,a.alpha+dt*2); a.mode='walk'; if(moveActor(a,dt,walk)){ a.state='work'; a.timer=6+Math.random()*8; } break;
     case 'work': a.mode='work'; a.timer-=dt;
+      // work-loop foley: at most one chomp/tap per actor every 1.2-1.8 s, and only while the scene is live
+      a.sfx=(a.sfx||0)-dt; if(a.sfx<=0){ a.sfx=1.2+Math.random()*0.6; if(a.alpha>0&&!g_paused()){ if(a.job==='wood')Sfx.play('chomp'); else if(a.job==='build')Sfx.play('hammer'); } }
       if(a.timer<=0){
         if(GATHER_JOBS.has(a.job)||a.job==='build'){ a.state='toDrop'; [a.tx,a.ty]=dropPointFor(a.job,i,G); }
         else if(a.job==='guard'){ a.state='patrol'; a.variant=(a.variant+1)%4; [a.tx,a.ty]=targetFor('guard',i,G,a.variant); }
         else { a.timer=6+Math.random()*8; a.face=-a.face; }
       } break;
-    case 'toDrop': a.mode='walk'; if(moveActor(a,dt,walk)){ a.state='dropping'; a.timer=0.8; } break;
+    case 'toDrop': a.mode='walk'; if(moveActor(a,dt,walk)){ a.state='dropping'; a.timer=0.8; if(!g_paused())Sfx.play(a.job==='build'?'plop':'drop'); } break;
     case 'dropping': a.mode='work'; a.timer-=dt; if(a.timer<=0){ a.state='toWork'; a.variant=(a.variant+1)%3; [a.tx,a.ty]=targetFor(a.job,i,G,a.variant); } break;
     case 'patrol': a.mode='walk'; if(moveActor(a,dt,walk*0.5)){ a.state='work'; a.timer=4+Math.random()*6; } break;
     case 'toHome': a.mode='walk'; if(moveActor(a,dt,walk)){ a.state='entering'; } break;
@@ -1229,7 +1397,7 @@ function render(t){
   syncActors(G);
   actors.forEach((a,i)=>updateActor(a,i,dt,G));
   if(!prevTrees)prevTrees=g.trees.slice();
-  g.trees.forEach((v,i)=>{ if(prevTrees[i]>=0.6&&v===0)treeAnim[i]={start:t,dir:treeSlots[i].side?-1:1}; prevTrees[i]=v; });
+  g.trees.forEach((v,i)=>{ if(prevTrees[i]>=0.6&&v===0){ treeAnim[i]={start:t,dir:treeSlots[i].side?-1:1}; Sfx.play('fell'); } prevTrees[i]=v; });
   const items=actors.map(a=>({y:a.y,a})); g.trees.forEach((v,i)=>{ const [x,y]=treePos(i,G); items.push({y:y-1,tree:i,x}); });
   items.sort((p,q)=>p.y-q.y).forEach(it=>{ if(it.tree!=null){ const i=it.tree, v=g.trees[i], sl=treeSlots[i], sc=(0.9+0.4*((it.y-hz)/(H-hz)))*sl.s;
       const an=treeAnim[i]; if(an){ const k=Math.min(1,(t-an.start)/1.1); if(k<1){ drawTree(it.x,it.y+1,sc,1,sl.kind,sl.seed,t,an.dir*1.35*k*k); return; } delete treeAnim[i]; }
@@ -1242,7 +1410,8 @@ function render(t){
   // ---- weather
   if(storm||flood){ ctx.strokeStyle='rgba(200,220,255,.45)'; ctx.lineWidth=1; for(const r of rain){ r.y=(r.y+r.v*0.02)%1; const x=r.x*W,y=r.y*H; ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-3,y+14);ctx.stroke(); if(y>damY&&y<H&&r.v>1.1){ ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.beginPath(); ctx.arc(x,y+14,3,Math.PI,0); ctx.stroke(); ctx.strokeStyle='rgba(200,220,255,.45)'; } }
     if(Math.random()<0.006)flash=1; }
-  if(flash>0){ ctx.fillStyle='rgba(255,255,255,'+(flash*0.55)+')'; ctx.fillRect(0,0,W,H); if(flash>0.6){ ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=2; ctx.beginPath(); let lx=W*(0.3+Math.random()*0.4), ly=0; ctx.moveTo(lx,ly); for(let k=0;k<8;k++){ lx+=(Math.random()-0.5)*40; ly+=hz/8; ctx.lineTo(lx,ly); } ctx.stroke(); } flash-=0.08; }
+  if(flash>0){ if(flash>=1)Sfx.play('crack'); // flash is set to 1 by the storm loop above or the lightning event, then fades
+    ctx.fillStyle='rgba(255,255,255,'+(flash*0.55)+')'; ctx.fillRect(0,0,W,H); if(flash>0.6){ ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=2; ctx.beginPath(); let lx=W*(0.3+Math.random()*0.4), ly=0; ctx.moveTo(lx,ly); for(let k=0;k<8;k++){ lx+=(Math.random()-0.5)*40; ly+=hz/8; ctx.lineTo(lx,ly); } ctx.stroke(); } flash-=0.08; }
   if(winter){ ctx.fillStyle='rgba(255,255,255,.85)'; for(const r of rain.slice(0,120)){ r.y=(r.y+r.v*0.003)%1; ctx.beginPath(); ctx.arc((r.x+Math.sin(t+r.v*9)*0.012)*W,r.y*H,1.2+r.v,0,Math.PI*2); ctx.fill(); } }
   if(drought){ gr=ctx.createLinearGradient(0,0,0,H); gr.addColorStop(0,'rgba(255,190,80,.18)'); gr.addColorStop(1,'rgba(255,150,60,.05)'); ctx.fillStyle=gr; ctx.fillRect(0,0,W,H); }
   // ---- lighting: warm sun wash + vignette
@@ -1264,6 +1433,7 @@ function frame(now){
     if(g.speed>0&&!g.complete&&!g.lost&&g.seenHelp){ acc+=dt*g.speed; while(acc>=DAY_MS){acc-=DAY_MS;simDay();dirty=true} }
     if(dirty){renderUI();dirty=false}
     render(now/1000);
+    Sfx.tick({paused:g.speed===0||!!g.lost,storm:active('storm')});
   }catch(e){ if(errCount++<5)console.error('frame error',e); }
 }
 Ads.init();
