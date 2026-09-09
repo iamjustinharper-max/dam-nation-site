@@ -61,7 +61,7 @@ canvas{display:block;width:100%;height:100%}
 .banner.good{border-left-color:var(--good,#7fcf8a)}
 .banner.toast{animation:toastIn .25s ease}
 @keyframes toastIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-#dambar{position:absolute;top:10px;left:10px;right:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;pointer-events:none}
+#dambar{position:absolute;top:10px;left:10px;right:300px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;pointer-events:none}
 .pill{background:rgba(24,14,6,.82);border:1px solid rgba(200,151,90,.35);padding:4px 11px;border-radius:20px;font-weight:700;font-variant-numeric:tabular-nums;font-size:13px;backdrop-filter:blur(4px);box-shadow:0 2px 6px rgba(0,0,0,.45)}
 .pill b{color:var(--oak-l)}
 #gauge{flex-basis:100%;background:rgba(24,14,6,.85);border:1px solid rgba(200,151,90,.4);border-radius:10px;padding:7px 12px;max-width:540px;backdrop-filter:blur(4px);box-shadow:0 3px 10px rgba(0,0,0,.5)}
@@ -92,6 +92,7 @@ canvas{display:block;width:100%;height:100%}
 #damstat .secs i.build b{background:var(--river);opacity:.7} #damstat .secs i.wreck{background:repeating-linear-gradient(45deg,#553,#553 3px,#221 3px,#221 6px)}
 #damstat .secs i.empty{border:1px dashed rgba(255,235,200,.35);background:transparent}
 #damstat .net{font-size:12px;color:var(--cream2);font-variant-numeric:tabular-nums}
+details.note summary{cursor:pointer;color:var(--oak-l);font-weight:700;margin:4px 0} details.note p{margin:4px 0}
 #damstat .net.bad{color:#ff8d84;font-weight:800} #damstat .net.warn{color:#ffc266;font-weight:700}
 #damstat.alert{box-shadow:inset 0 0 0 2px rgba(226,87,79,.8),inset 0 -3px 6px rgba(0,0,0,.35);animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{50%{box-shadow:inset 0 0 0 2px rgba(226,87,79,.25),inset 0 -3px 6px rgba(0,0,0,.35)}}
@@ -163,10 +164,11 @@ canvas{display:block;width:100%;height:100%}
   #dambar{top:6px;left:6px;right:6px;gap:4px}
   .pill{font-size:11px;padding:2px 8px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .pill:nth-child(n+3){display:none}
-  #gauge{padding:4px 8px;max-width:100%;border-radius:8px} #gauge .lab{font-size:11px} #gauge .sub{display:none} #gauge .track{height:7px;margin-top:3px} #gauge .nudge{font-size:11px;padding:3px 6px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #gauge{padding:4px 8px;max-width:100%;border-radius:8px} #gauge .lab{font-size:11px} #gauge .sub{display:none} #gauge .track{height:7px;margin-top:3px} #gauge .nudge{font-size:11px;padding:3px 6px;margin-top:4px;}
   #banners{bottom:calc(var(--drawer,64px) + 50px);left:6px;right:6px} .banner{font-size:12px;padding:5px 8px}
   #panel{position:absolute;left:0;right:0;bottom:0;border-left:0;border-top:3px solid #1a0e05;max-height:62vh;display:flex;flex-direction:column;transition:max-height .22s ease;box-shadow:0 -6px 18px rgba(0,0,0,.5)}
-  #panel:not(.open){max-height:calc(var(--drawer,64px))}
+  #panel:not(.open){max-height:200px}
+  #damstat,#tutorial,#tabs{flex:none}
   #panel:not(.open) .tab-body,#panel:not(.open) #damstat{display:none}
   #panel.open .tab-body{flex:1;min-height:0}
   body.drawer-open .speed{display:none}
@@ -178,7 +180,7 @@ canvas{display:block;width:100%;height:100%}
   .tab-body{padding:8px 10px 14px} .note{font-size:12px}
 }
 @media (max-width:600px){ header{flex-wrap:wrap;overflow:visible;padding:3px 6px;gap:3px 4px} h1{font-size:14px;line-height:1;margin-right:4px} .stat{padding:1px 6px 1px 4px;font-size:11px} }
-@media (pointer:coarse){ button.small{min-height:44px;min-width:44px} .speed button{width:38px;min-height:38px} #tabs button{min-height:44px} }
+@media (pointer:coarse){ .kb{display:none} button.small{min-height:44px;min-width:44px} .speed button{width:38px;min-height:38px} #tabs button{min-height:44px} }
 #panel,.tab-body,#damstat,#tutorial{overflow-x:hidden;overflow-wrap:anywhere}
 @media (prefers-reduced-motion:reduce){ .banner,.pill,#gauge,.overlay{backdrop-filter:none} #gauge .track i.hold{animation:none} }
 </style>
@@ -448,16 +450,17 @@ const RESEARCH = [
   // Tier II: unlocks after damming 2 rivers
   {id:'weirs',   name:'Fish Weirs',       cost:70,  mat:{food:60,wood:40}, tier:2, desc:'A filling pond gives +60% food instead of +30%.', req:'trails'},
   {id:'flume',   name:'Log Flume',        cost:80,  mat:{wood:90},         tier:2, desc:'Building and repair work +30%.'},
-  {id:'masonry', name:'Stone Masonry',    cost:90,  mat:{stone:40,mud:40}, tier:2, desc:'Stone and log walls take a third less damage.', req:'stone'},
+  {id:'masonry', name:'Stone Masonry',    cost:90,  mat:{stone:40,mud:40}, tier:2, desc:'Stone and log walls take a third less damage and breach less often.', req:'stone'},
   {id:'spillway',name:'Spillway',         cost:90,  mat:{mud:60,wood:40},  tier:2, desc:'Breaches 60% rarer and storms no longer drain the pond.', req:'channels'},
   {id:'alarm',   name:'Tail-slap Alarm',  cost:80,  mat:{food:40},         tier:2, desc:'Five days warning of raids; otters and bears flee at half the guards.', req:'scouts'},
   {id:'nursery', name:'Kit Nurseries',    cost:70,  mat:{food:80},         tier:2, desc:'Kits every 8 days instead of 12.', req:'lodge2'},
   {id:'expedition',name:'Expeditions',    cost:100, mat:{food:60,wood:40}, tier:2, desc:'Send five beavers upriver for 12 days to bring back wood, stone and science.'},
   {id:'roots',   name:'Deep Roots',       cost:80,  mat:{food:50},         tier:2, desc:'Eight more tree slots and saplings grow 50% faster.', req:'coppice'},
+  {id:'salvage', name:'Salvage Crews',    cost:85,  mat:{wood:60,mud:30},  tier:2, desc:'After a breach or logging crew, half the lost sections are dragged back half-built.', req:'channels'},
   // Tier III: unlocks after damming 4 rivers
-  {id:'engineering',name:'Master Engineering',cost:150,mat:{wood:100,stone:60}, tier:3, desc:'Reinforced Log walls are 30% stronger.', req:'logeng'},
+  {id:'engineering',name:'Master Engineering',cost:150,mat:{wood:100,stone:60}, tier:3, desc:'Reinforced Log walls are 30% stronger and erode half as fast.', req:'logeng'},
   {id:'wardens', name:'Weather Wardens',  cost:140, mat:{food:80},         tier:3, desc:'Storms, floods and droughts a day shorter and 30% weaker.', req:'spillway'},
-  {id:'council', name:'Elder Council',    cost:130, mat:{food:100},        tier:3, desc:'Master beavers are 20% more effective still.', req:'apprentice'},
+  {id:'council', name:'Elder Council',    cost:130, mat:{food:100},        tier:3, desc:'Masters are 20% more effective and train newcomers to Skilled in 15 days.', req:'apprentice'},
   {id:'legacy',  name:'Legacy Lodges',    cost:120, mat:{wood:120,mud:60}, tier:3, desc:'Every lodge houses two more beavers.', req:'lodge2'},
 ];
 const RIVERS = [
@@ -520,7 +523,7 @@ const Ads={
     if(window.Native){ this.provider='native'; window.Native.ready.then(()=>{ if(window.Native.isPremium()){ this.premium=true; try{localStorage.setItem(PREMIUM_KEY,'1')}catch(e){} dirty=true; } }); } },
   isPremium(){ return this.premium; },
   // Shown at natural breaks only (moving upstream). Never for premium; never more than once per 3 minutes.
-  showInterstitial(then){ if(this.premium||performance.now()-this.lastInterstitial<this.MIN_GAP_MS){ then(); return; } this.lastInterstitial=performance.now();
+  showInterstitial(then){ if(this.premium||g.damsBuilt<2||performance.now()-this.lastInterstitial<this.MIN_GAP_MS){ then(); return; } this.lastInterstitial=performance.now();
     if(this.provider==='native'){ const ws=g.speed; g.speed=0; window.Native.showInterstitial().finally(()=>{ g.speed=ws||1; then(); dirty=true; }); return; }
     this._mock('Interstitial ad',4,then,null); },
   // Always optional. The caller passes what the player gets; onReward runs only if the ad completes.
@@ -542,6 +545,7 @@ const Ads={
 // Rewarded offers the game can make. Each is a genuine shortcut, never required to progress.
 let boostDays=0, lastBoostDay=-99, lostSections=[];
 function offerBoost(){ Ads.showRewarded('two days of double gathering',()=>{ boostDays=2; lastBoostDay=g.day; log('Boost! Gathering is doubled for two days.','good'); Sfx.play('coin'); }); }
+function salvage(){ if(!has('salvage')||!lostSections.length)return; const n=Math.ceil(lostSections.length/2); let k=0; for(const sec of lostSections){ if(k>=n||g.sections.length>=river().width)break; g.sections.push({type:sec.type,progress:0.5,hp:0,wrecked:false}); k++; } if(k)log('Salvage crews dragged '+k+' section'+(k>1?'s':'')+' back, half-built.','good'); lostSections=[]; }
 function offerRecover(){ if(!lostSections.length)return; Ads.showRewarded('recover '+lostSections.length+' washed-away section'+(lostSections.length>1?'s':''),()=>{ for(const sec of lostSections){ if(g.sections.length<river().width)g.sections.push({type:sec.type,progress:0.5,hp:0,wrecked:false}); } log(lostSections.length+' sections recovered half-built.','good'); lostSections=[]; Sfx.play('coin'); }); }
 
 // =====================================================================
@@ -569,7 +573,7 @@ function newGame(){
 const river=()=>riverAt(g.river);
 const danger=()=>1+0.3*g.river;   // every threat scales with this
 // ---- roster: beavers are individuals with experience per job
-function tierOf(b,job){ const x=(b.xp&&b.xp[job||b.job])||0; return x>=TIER_XP[2]?2:x>=TIER_XP[1]?1:0; }
+function tierOf(b,job){ const x=(b.xp&&b.xp[job||b.job])||0; return x>=TIER_XP[2]?2:x>=(has('council')?15:TIER_XP[1])?1:0; }
 function newBeaver(job){ g.nextId=(g.nextId||0)+1; return {id:g.nextId, job:job||'idle', xp:{}}; }
 function syncCounts(){ g.beavers=g.roster.length; for(const j of JOBS)g.jobs[j.id]=0; for(const b of g.roster)if(g.jobs[b.job]!=null)g.jobs[b.job]++; }
 function jobPower(job){ let p=0; for(const b of g.roster)if(b.job===job){ const t=tierOf(b); p+=TIER_MULT[t]*(t===2&&has('council')?1.2:1); } return p; }
@@ -594,7 +598,7 @@ const lodgeCost=()=>({wood:40+20*(g.lodges-1)});
 const recruitCost=()=>({food:20+5*g.beavers});
 const active=t=>g.events.some(e=>e.type===t);
 const flowNow=()=>river().flow*FLOW_SEASON[season()]*(active('storm')?1.6:1);
-const holdNeed=()=>10+5*g.river;
+const holdNeed=()=>10+3*g.river;
 const damReady=()=>g.sections.length===river().width&&g.sections.every(s=>s.progress>=1)&&damStrength()>=river().req*(g.hold>0?0.8:0.95);
 
 function mults(){
@@ -620,10 +624,10 @@ function mults(){
 function damStrength(){
   return g.sections.reduce((a,s)=>{const t=SECTION_TYPES[s.type];return a+(s.progress>=1?t.strength*(s.type==='log'&&has('engineering')?1.3:1)*(s.hp/t.hp):0)},0);
 }
-function log(text,kind){ g.log.push({day:g.day,text,kind:kind||'info'}); if(g.log.length>80)g.log.shift(); if(activeTab!=='log')unread++; dirty=true; }
+function log(text,kind){ g.log.push({day:g.day,text,kind:kind||'info'}); if(g.log.length>80)g.log.shift(); if(activeTab!=='log')unread++; dirty=true; if(kind&&kind!=='info'&&typeof toast==='function')toast(text,kind); }
 // short-lived notices over the scene (newcomers auto-joining a job, etc.); they share the banner stack
-const toasts=[]; function toast(text){ const now=(typeof performance!=='undefined'?performance.now():0); toasts.push({text,until:now+4500}); dirty=true; if(typeof setTimeout!=='undefined')setTimeout(()=>{ dirty=true; },4600); }
-function joined(who,job){ const jn=JOBS.find(j=>j.id===job).name; log(who+' starts on '+jn.toLowerCase()+'.','good'); toast(who.replace(/ and$/,'')+' → '+jn+' (change it in the Beavers tab)'); }
+const toasts=[]; function toast(text,kind){ const now=(typeof performance!=='undefined'?performance.now():0); toasts.push({text,kind:kind||'good',until:now+(kind==='dire'?7000:5000)}); while(toasts.length>3)toasts.shift(); dirty=true; if(typeof setTimeout!=='undefined')setTimeout(()=>{ dirty=true; },5100); }
+function joined(who,job){ const jn=JOBS.find(j=>j.id===job).name; log(who+' starts on '+jn.toLowerCase()+' (change it in the Beavers tab).','good'); }
 function canAfford(c){return Object.entries(c).every(([k,v])=>g.res[k]>=v)}
 function pay(c){for(const [k,v] of Object.entries(c))g.res[k]-=v}
 function costText(c){return Object.entries(c).map(([k,v])=>'<span class="'+(g.res[k]>=v?'':'no')+'">'+v+' '+k+'</span>').join(' · ')}
@@ -662,8 +666,8 @@ function simDay(){
   if(g.res.food<0){
     g.res.food=0; g.starving++;
     if(g.starving===1)log('Food has run out. Hungry beavers work badly and will leave.','bad');
-    if(g.starving%4===0&&g.beavers>1){removeBeavers(1);log('A starving beaver left the clan.','bad')}
-    if(g.beavers<=1&&g.starving>=8&&!g.lost){ g.lost=true; log('The last beaver has given up. The colony has scattered.','dire'); }
+    if(g.starving%4===0&&g.beavers>1){removeBeavers(1);log('A hungry beaver went to find food elsewhere.','bad')}
+    if(g.beavers<=1&&g.starving>=8&&!g.lost&&!g.away){ g.lost=true; log('The last beaver has given up. The colony has scattered.','dire'); }
   } else g.starving=0;
   // erosion first, then builders repair what the current took
   // erosion
@@ -694,7 +698,7 @@ function simDay(){
   // events
   for(const e of g.events){
     e.days--;
-    if(e.type==='storm'){ damageDam(flowNow()*1.5*(1+0.1*g.river)*(has('channels')?0.5:1)*(has('wardens')?0.7:1),'the storm'); if(g.hold>0&&!has('spillway')){ g.hold=Math.max(0,g.hold-(has('channels')?0.5:1)); } }
+    if(e.type==='storm'){ damageDam(flowNow()*1.5*(1+0.1*g.river)*(has('channels')?0.5:1)*(has('wardens')?0.7:1),'the storm'); if(g.hold>0&&!has('spillway')){ g.hold=Math.max(0,g.hold-(has('channels')?1:2)); } }
   }
   g.events=g.events.filter(e=>e.days>0);
   if(g.pending){ g.pending.days--; if(g.pending.days<=0){resolveRaid();g.pending=null} }
@@ -702,7 +706,7 @@ function simDay(){
   if(g.cooldown>0)g.cooldown--;
   else if(Math.random()<Math.min(0.2,0.04*danger())){ startEvent(pickEvent()); g.cooldown=Math.max(1,4-Math.floor(g.river/2)); if(g.river>=4&&Math.random()<0.2)startEvent(pickEvent()); }
   // morale
-  let target=60+(g.res.food>g.beavers*5?15:0)+(idle()>0?10:0)-(g.starving?40:0)-(active('storm')||active('drought')?10:0);
+  let target=60+(foodBalance()>=g.beavers*0.1?15:0)+(idle()>0?10:0)-(g.starving?40:0)-(active('storm')||active('drought')?10:0);
   g.morale=clamp(g.morale+clamp(target-g.morale,-2,2),0,100);
   // dam complete?
   if(damReady()){
@@ -717,14 +721,14 @@ function hurt(s,amount,source,raw){
   s.hp-=amount;
   if(s.hp<=0){ s.hp=0; s.progress=0; s.wrecked=true; log('Section '+(g.sections.indexOf(s)+1)+' was destroyed by '+source+'. It must be rebuilt.','bad'); g.morale=clamp(g.morale-5,0,100); Sfx.play('wave'); }
 }
-function damageDam(amount,source){
+function damageDam(amount,source,raw){
   const built=()=>g.sections.filter(s=>s.progress>=1);
   let hits=0;
   if(amount>0&&built().length)Sfx.play('splash');
   while(amount>0&&built().length&&hits<4){
     const list=built(); const s=list[ri(0,list.length-1)];
     const chunk=Math.min(amount,Math.max(5,amount/2));
-    hurt(s,chunk,source); amount-=chunk; hits++;
+    hurt(s,chunk,source,raw); amount-=chunk; hits++;
   }
 }
 
@@ -766,24 +770,24 @@ function startEvent(type,now){
       if(r>=2&&g.sections.length>=4&&Math.random()<breach){
         const lost=Math.floor(R.width/4)+1;
         lostSections=g.sections.splice(g.sections.length-lost,lost); if(g.sel>=g.sections.length)g.sel=-1;
-        g.morale=clamp(g.morale-20,0,100); g.hold=0;
+        g.morale=clamp(g.morale-20,0,100); g.hold=0; salvage();
         log('FLASH FLOOD! The dam is breached and '+lost+' sections are swept away.','dire');
       } else { damageDam(dmg,'a flash flood'); if(g.hold>0)g.hold=Math.max(0,g.hold*(has('channels')?0.75:0.5)); log('A flash flood slams the dam'+(g.hold>0?' and the pond loses water':'')+'.','bad'); }
       g.events.push({type:'flood',days:1,name:'Flash flood'});
       break;}
     case 'drought': g.events.push({type:'drought',days:Math.max(2,6+r-(has('wardens')?1:0)),name:'Drought'}); log('Drought. Plants wither and foraging suffers for six days.','warn'); break;
     case 'trapper':
-      if(has('camo')&&Math.random()<0.5){log('A park ranger walked right past your camouflaged colony.','good');break}
+      if(has('camo')&&Math.random()<0.5){log('A fur trapper walked right past your camouflaged colony.','good');break}
       {const lose=Math.min(g.beavers-1,Math.max(1+(r>=3?1:0),Math.floor(g.beavers*(0.08+0.02*r))));
-       if(lose>0){removeBeavers(lose);g.morale=clamp(g.morale-15,0,100);log('A park ranger relocated '+lose+' beaver'+(lose>1?'s':'')+' downstream.','bad')}
-       g.events.push({type:'human',days:2,name:'Park ranger',sprite:'ranger'});}
+       if(lose>0){removeBeavers(lose);g.morale=clamp(g.morale-15,0,100);log('A fur trapper caught '+lose+' beaver'+(lose>1?'s':'')+' and carried them off downstream.','bad')}
+       g.events.push({type:'human',days:2,name:'Fur trapper',sprite:'ranger'});}
       break;
     case 'crew':{
       if(g.day<100||g.sections.length<3)break;
       if(has('camo')&&Math.random()<0.5){log('A logging crew scouted the river and missed your camouflaged dam.','good');break}
       const lost=Math.min(g.sections.length,Math.ceil(R.width/3));
       lostSections=g.sections.splice(g.sections.length-lost,lost); if(g.sel>=g.sections.length)g.sel=-1; g.morale=clamp(g.morale-20,0,100); g.hold=0;
-      log('A logging crew tore out '+lost+' sections of the dam. The rest still stands.','dire');
+      log('A logging crew tore out '+lost+' sections of the dam. The rest still stands.','dire'); salvage();
       g.events.push({type:'human',days:2,name:'Logging crew',sprite:'logger'});
       break;}
     case 'tourists': g.events.push({type:'tourists',days:2+Math.floor(r/3),name:'Tourists on the bank'}); log('Tourists are wandering the bank taking photos. The beavers keep their heads down: building halves for two days.','warn'); break;
@@ -826,8 +830,9 @@ function resolveRaid(){
     const ratio=1-defense/strength;
     const share=Math.min(0.6,0.3+0.04*r); const w=Math.floor(g.res.wood*share*ratio), f=Math.floor(g.res.food*share*ratio);
     g.res.wood-=w; g.res.food-=f; g.morale=clamp(g.morale-10,0,100);
-    log('Rival beavers raided the camp'+(defense>0?' despite your guards':'')+': stole '+w+' wood and '+f+' food.','bad');
-    damageDam(ratio*strength*5*(1+0.1*r),'raiders');
+    const taken=Math.min(Math.max(0,g.beavers-4),Math.ceil(ratio*3)); if(taken>0)removeBeavers(taken);
+    log('Rival beavers raided the camp'+(defense>0?' despite your guards':'')+': stole '+w+' wood and '+f+' food'+(taken?' and dragged off '+taken+' beaver'+(taken>1?'s':''):'')+'.','bad');
+    damageDam(ratio*strength*4*(1+0.1*r),'raiders',true);
   }
 }
 
@@ -840,6 +845,10 @@ function addSection(){
   const t=SECTION_TYPES[g.nextType]; if(g.sections.length>=river().width||!canAfford(t.cost)){Sfx.play('buzz');return}
   pay(t.cost); g.sections.push({type:g.nextType,progress:0,hp:0,wrecked:false}); dirty=true;
 }
+// every finished section weaker than the selected wall type
+function rebuildTargets(){ const t=SECTION_TYPES[g.nextType]; return g.sections.map((x,i)=>x.progress>=1&&SECTION_TYPES[x.type].strength<t.strength?i:-1).filter(i=>i>=0); }
+function rebuildAllCost(list){ const t=SECTION_TYPES[g.nextType], c={}; for(const k in t.cost)c[k]=t.cost[k]*list.length; return c; }
+function rebuildAll(){ const list=rebuildTargets(); if(!list.length)return; const c=rebuildAllCost(list); if(!canAfford(c)){Sfx.play('buzz');return} pay(c); for(const i of list){ const x=g.sections[i]; x.type=g.nextType; x.progress=0; x.hp=0; x.wrecked=false; } g.complete=false; g.hold=0; log('Rebuilding '+list.length+' section'+(list.length>1?'s':'')+' as '+SECTION_TYPES[g.nextType].name+'.','good'); dirty=true; }
 function rebuildSection(i){
   const s=g.sections[i]; if(!s)return; const t=SECTION_TYPES[g.nextType]; if(!canAfford(t.cost)){Sfx.play('buzz');return}
   pay(t.cost); s.type=g.nextType; s.progress=0; s.hp=0; s.wrecked=false; g.complete=false; g.hold=0; dirty=true;
@@ -853,11 +862,11 @@ function sendExpedition(){
 }
 function tickExpedition(){
   if(!g.away)return; g.away.days--; if(g.away.days>0)return;
-  const r=g.river, loot={wood:40+15*r,science:10+3*r}; if(has('stone'))loot.stone=15+5*r;
+  const r=g.river, d=danger(), loot={wood:Math.round((40+15*r)*d),science:Math.round((10+3*r)*d)}; if(has('stone'))loot.stone=Math.round((15+5*r)*d);
   for(const [k,v] of Object.entries(loot))g.res[k]=k==='science'?g.res[k]+v:Math.min(storage(),g.res[k]+v);
-  let back=g.away.beavers; if(Math.random()<0.08*danger()){ back=back.slice(1); log('The expedition returned one beaver short: a ranger caught the youngest.','bad'); }
+  let back=g.away.beavers; if(Math.random()<0.05){ back=back.slice(1); log('The expedition returned one beaver short: a trapper caught the youngest.','bad'); }
   for(const b of back){ b.job='idle'; g.roster.push(b); } syncCounts(); g.away=null;
-  log('The expedition is back with '+Object.entries(loot).map(([k,v])=>v+' '+k).join(', ')+'.','good');
+  const nx=riverAt(g.river+1), nr=RULES[nx.rule]; log('The expedition is back with '+Object.entries(loot).map(([k,v])=>v+' '+k).join(', ')+(nr&&nr.name?'. They scouted '+nx.name+' upstream: '+nr.name.toLowerCase()+'.':'.'),'good');
 }
 function foodBalance(){ return jobPower('forage')*3*mults().food-g.beavers*0.5; }
 function neediestJob(){ // where a newcomer helps most: food first, then the thinnest unlocked job
@@ -865,6 +874,7 @@ function neediestJob(){ // where a newcomer helps most: food first, then the thi
   const open=JOBS.filter(j=>!j.req||has(j.req)).filter(j=>j.id!=='guard'&&j.id!=='research'&&!(j.id==='stone'&&rule().noStone));
   return open.reduce((a,j)=>g.jobs[j.id]<g.jobs[a.id]?j:a,open[0]).id;
 }
+const maxWood=()=>Math.max(2,Math.floor(g.trees.length*(has('coppice')?0.5:0.15)));
 function canRecruit(){ return g.beavers<housing()&&canAfford(recruitCost())&&foodBalance()>=0.5; }
 function recruitBlock(){ if(g.beavers>=housing())return 'Lodges are full'; if(!canAfford(recruitCost()))return 'Not enough food'; if(foodBalance()<0.5)return 'Foragers can\'t feed another beaver'; return ''; }
 function recruit(){ if(!canRecruit()){Sfx.play('buzz');return} pay(recruitCost()); const job=neediestJob(); addBeaver(job); joined('A new beaver is recruited and',job); }
@@ -923,7 +933,7 @@ function renderUI(){
     b+='<div class="banner '+cls+'">'+e.name+(e.days>1?' · '+e.days+' days left':'')+'</div>';
   }
   if(g.starving)b+='<div class="banner bad">No food — beavers are starving</div>';
-  { const now=performance.now(); for(let i=toasts.length-1;i>=0;i--)if(toasts[i].until<now)toasts.splice(i,1); for(const t of toasts)b+='<div class="banner good toast">'+t.text+'</div>'; }
+  { const now=performance.now(); for(let i=toasts.length-1;i>=0;i--)if(toasts[i].until<now)toasts.splice(i,1); for(const t of toasts)b+='<div class="banner toast '+(t.kind==='bad'||t.kind==='dire'?'bad':t.kind==='warn'?'':'good')+'">'+t.text+'</div>'; }
   $('#banners').innerHTML=b;
   renderDamStat(R,built,str);
   document.querySelectorAll('#tabs button[data-tab]').forEach(t=>{t.classList.toggle('on',t.dataset.tab===activeTab)});
@@ -933,13 +943,13 @@ function renderUI(){
   if(g.lost){
     ov.hidden=false;
     const masters=g.roster.filter(b=>tierOf(b)===2).length;
-    ov.innerHTML='<div class="box"><h1>The colony scattered</h1><p>Starvation emptied the lodges on day '+g.day+' beside '+R.name+'.</p><p>Rivers dammed: <b>'+g.damsBuilt+'</b> · discoveries: <b>'+researchCount()+'</b> · masters trained: <b>'+masters+'</b>.</p><p class="note">Tip: keep food production above what the colony eats before recruiting, and never let the lumberjacks outrun the forest.</p><div class="btns"><button class="primary" onclick="localStorage.removeItem(SAVE_KEY);newGame();g.seenHelp=true;dirty=true">Start a new clan</button></div></div>';
+    ov.innerHTML='<div class="box"><h1>The colony scattered</h1><p>The lodges ran out of food on day '+g.day+' beside '+R.name+'.</p><p>Rivers dammed: <b>'+g.damsBuilt+'</b> · discoveries: <b>'+researchCount()+'</b> · masters trained: <b>'+masters+'</b>.</p><p class="note">Tip: keep food production above what the colony eats before recruiting, and never let the lumberjacks outrun the forest.</p><div class="btns"><button class="primary" onclick="localStorage.removeItem(SAVE_KEY);newGame();g.seenHelp=true;dirty=true">Start a new clan</button></div></div>';
   } else if(g.complete){
     ov.hidden=false;
-    ov.innerHTML='<div class="box"><h1>'+R.name+' dammed!</h1><p>Your '+g.beavers+' beavers held back a river of flow '+R.flow+' with a wall of strength '+fmt(str)+' in <b>'+(g.day-(g.riverStart||0))+' days</b>'+(g.best&&g.best[g.river]&&g.best[g.river]<g.day-(g.riverStart||0)?' (best '+g.best[g.river]+')':g.best&&g.best[g.river]?' — a new best!':'')+'. Every beaver, every discovery and every stored material comes with you.</p><p>Upstream lies <b>'+riverAt(g.river+1).name+'</b>: '+riverAt(g.river+1).width+' sections wide, flow '+riverAt(g.river+1).flow+', needs strength '+riverAt(g.river+1).req+'.'+(RULES[riverAt(g.river+1).rule].name?' <b>'+RULES[riverAt(g.river+1).rule].name+'</b>: '+RULES[riverAt(g.river+1).rule].desc:'')+'</p>'+(g.damsBuilt+1===TIER_NEED[2]?'<p>Damming a second river opens <b>Tier II research</b>.</p>':g.damsBuilt+1===TIER_NEED[3]?'<p>Four rivers dammed opens <b>Tier III research</b>.</p>':'')+'<div class="btns"><button class="primary" onclick="Ads.showInterstitial(nextRiver)">Move upstream</button></div></div>';
+    ov.innerHTML='<div class="box"><h1>'+R.name+' dammed!</h1><p>Your '+g.beavers+' beavers held back a river of flow '+R.flow+' with a wall of strength '+fmt(str)+' in <b>'+(g.day-(g.riverStart||0))+' days</b>'+(g.best&&g.best[g.river]&&g.best[g.river]<g.day-(g.riverStart||0)?' (best '+g.best[g.river]+')':g.best&&g.best[g.river]?' — a new best!':'')+'. Every beaver, every discovery and every stored material comes with you.</p><p>Upstream lies <b>'+riverAt(g.river+1).name+'</b>: '+riverAt(g.river+1).width+' sections wide, flow '+riverAt(g.river+1).flow+', needs strength '+riverAt(g.river+1).req+'.'+(RULES[riverAt(g.river+1).rule].name?' <b>'+RULES[riverAt(g.river+1).rule].name+'</b>: '+RULES[riverAt(g.river+1).rule].desc:'')+'</p>'+(g.damsBuilt+1===TIER_NEED[2]?'<p>Damming a second river opens <b>Tier II research</b>.</p>':g.damsBuilt+1===TIER_NEED[3]?'<p>Four rivers dammed opens <b>Tier III research</b>.</p>':'')+'<div class="btns">'+(Ads.isPremium()||g.damsBuilt<1?'':'<button onclick="Ads.buyPremium()">Remove ads · £2.99</button>')+'<button class="primary" onclick="Ads.showInterstitial(nextRiver)">Move upstream</button></div></div>';
   } else if(!g.seenHelp&&g.tut<99&&g.day===0){
     ov.hidden=false;
-    ov.innerHTML='<div class="box"><h1>Dam Clan</h1><p>Your clan of four has settled beside Trickle Creek. Block it, hold the water back while the pond fills, then move upstream to bigger rivers.</p><p>Every beaver eats. Lumberjacks chomp trees, builders turn wood into wall, and the current never stops wearing at it.</p><p class="note">Space pauses. The game autosaves. Press ? any time for the full rules.</p><div class="btns"><button class="primary" id="btn-start">Start building</button></div></div>';
+    ov.innerHTML='<div class="box"><h1>Dam Clan</h1><p>Your clan of four has settled beside Trickle Creek. Block it, hold the water back while the pond fills, then move upstream to bigger rivers.</p><p>Every beaver eats. Lumberjacks chomp trees, builders turn wood into wall, and the current never stops wearing at it.</p><p class="note"><span class="kb">Space pauses. </span>The game autosaves. Press ? any time for the full rules.</p><div class="btns"><button class="primary" id="btn-start">Start building</button></div></div>';
     $('#btn-start').onclick=()=>{g.seenHelp=true;ov.hidden=true;dirty=true;};
   } else if(!g.seenHelp){
     ov.hidden=false;
@@ -948,12 +958,13 @@ function renderUI(){
       '<li><b>Build</b> tab: pay materials to add dam sections; builders finish them over time. The dam must be full width <i>and</i> strong enough for the river, then hold while the pond fills.</li>'+
       '<li>The current erodes every wall daily. Stick walls wash away fast on big rivers; mud, stone and log walls resist erosion and shrug off attacks. Keep builders on repair.</li>'+
       '<li><b>Research</b> spends science on better walls, storage, scouts and defences.</li>'+
-      '<li>Storms, floods, droughts, rival clans, rangers, loggers, tourists and the odd river monster will hit you. Guards, scouts, camouflage and flood channels blunt them.</li>'+
+      '<li>Storms, floods, droughts, rival clans, trappers, loggers, tourists and the odd river monster will hit you. Guards, scouts, camouflage and flood channels blunt them.</li>'+
       '<li>Recruit with food or let kits grow up; build lodges to house them and dig stores to hold more materials.</li>'+
       '<li>Wood comes from the trees on the banks. Lumberjacks fell them one by one; stumps regrow over weeks, faster when foragers plant seeds. Cut too fast and there is nothing to chomp.</li>'+
       '<li>Beavers get better at a role the longer they do it: Skilled after 30 days, Master after 90. Each river upstream is wider, faster and more dangerous.</li></ul>'+
-      '<p class="note">Space pauses. Progress autosaves in this browser.</p>'+
+      '<p class="note"><span class="kb">Space pauses. </span>Progress autosaves in this browser.</p>'+
       '<p class="note"><b>Ads:</b> '+(Ads.isPremium()?'off, thank you for supporting the clan.':'an ad plays between rivers; optional boosts are ads you choose. Remove the between-river ads for a one-time £2.99.')+'</p>'+
+      '<p class="note"><label><input type="checkbox" onchange="setNoFlash(this.checked)" '+(noFlash?'checked':'')+'> Reduce lightning flashes</label></p>'+
       '<div class="btns"><button class="primary" id="btn-start">Back to the river</button>'+(Ads.isPremium()?'':'<button onclick="Ads.buyPremium()">Remove ads · £2.99</button><button onclick="Ads.restore()">Restore purchase</button>')+'</div></div>';
     $('#btn-start').onclick=()=>{g.seenHelp=true;ov.hidden=true;dirty=true;};
   } else ov.hidden=true;
@@ -974,7 +985,7 @@ function renderTutorial(){
   el.hidden=false; const st=TUT[g.tut];
   el.innerHTML='<span class="step">'+(g.tut+1)+'/'+TUT.length+'</span><span class="txt">'+st.text+'</span>'+(st.tab&&activeTab!==st.tab?'<button class="small" onclick="activeTab=\''+st.tab+'\';dirty=true">Open</button>':'')+'<button class="small skip" onclick="g.tut=99;dirty=true" title="Skip the guide">✕</button>';
 }
-function erosionRate(){ if(mults().erosion===0)return 0; const f=flowNow(); return g.sections.reduce((a,s)=>a+(s.progress>=1?f*EROSION/SECTION_TYPES[s.type].resist:0),0); }
+function erosionRate(){ if(mults().erosion===0)return 0; const f=flowNow(); return g.sections.reduce((a,s)=>a+(s.progress>=1?f*EROSION/(SECTION_TYPES[s.type].resist*(s.type==='log'&&has('engineering')?2:1)):0),0); }
 function renderDamStat(R,built,str){
   const el=$('#damstat'); const m=mults();
   const ero=erosionRate(), cap=jobPower('build')*5*m.build, unbuilt=g.sections.some(x=>x.progress<1);
@@ -999,7 +1010,7 @@ function renderDamStat(R,built,str){
   el.className=(cls==='bad'||wrecked)?'alert':'';
   el.innerHTML='<div class="top"><span>Dam · '+R.name+(g.damsBuilt?' <small>· '+g.damsBuilt+' dammed</small>':'')+'</span><b>'+built+'/'+R.width+' sections · '+fmt(str)+'/'+R.req+'</b></div><div class="secs">'+secs+'</div><div class="net '+cls+'">'+net+'</div>';
 }
-function breachChance(){ const R=river(), r=g.river; if(r<2||g.sections.length<4)return 0; const weakest=g.sections.filter(x=>x.progress>=1).reduce((a,x)=>Math.min(a,SECTION_TYPES[x.type].armor),4); return Math.min(0.6,0.2+0.08*r)/weakest*(has('channels')?0.5:1)*(has('spillway')?0.4:1); }
+function breachChance(){ const R=river(), r=g.river; if(r<2||g.sections.length<4)return 0; const weakest=g.sections.filter(x=>x.progress>=1).reduce((a,x)=>Math.min(a,SECTION_TYPES[x.type].armor+(has('masonry')&&(x.type==='stone'||x.type==='log')?1:0)),5); return Math.min(0.6,0.2+0.08*r)/weakest*(has('channels')?0.5:1)*(has('spillway')?0.4:1); }
 // The next thing to do, in plain words. Returns null when nothing is pressing.
 function nudge(R,built,str){
   const m=mults(), fb=foodBalance();
@@ -1017,16 +1028,28 @@ function nudge(R,built,str){
   const bestType=['log','stone','mud','stick'].find(k=>!SECTION_TYPES[k].req||has(SECTION_TYPES[k].req));
   if(built===R.width&&str<R.req*0.95){
     const bestPossible=SECTION_TYPES[bestType].strength*R.width;
-    if(bestPossible<R.req){ const nextRes=RESEARCH.find(r=>['mudpack','stone','logeng'].includes(r.id)&&!has(r.id)); return SECTION_TYPES[bestType].name+'s can\'t hold '+R.name+' ('+bestPossible+' max, needs '+R.req+'). Research '+(nextRes?nextRes.name:'a stronger wall')+'.'; }
+    if(bestPossible<R.req){ const nextRes=RESEARCH.find(r=>['mudpack','stone','logeng'].includes(r.id)&&!has(r.id));
+      if(!nextRes)return SECTION_TYPES[bestType].name+'s can\'t hold '+R.name+' ('+bestPossible+' max, needs '+R.req+'): research a stronger wall.';
+      const lead=SECTION_TYPES[bestType].name+'s can\'t hold '+R.name+' ('+bestPossible+' max, needs '+R.req+'). ';
+      if(nextRes.req&&!has(nextRes.req)){ const pre=RESEARCH.find(r=>r.id===nextRes.req); return lead+'Research '+pre.name+' first, then '+nextRes.name+'.'; }
+      const sc=sciCost(nextRes);
+      if(g.res.science<sc)return lead+(g.jobs.research===0?'Put a beaver on Research to earn science':'Researchers are earning science')+' ('+Math.floor(g.res.science)+'/'+sc+' for '+nextRes.name+').';
+      if(!canAfford(nextRes.mat||{}))return lead+nextRes.name+' needs '+shortOf(nextRes.mat)+' more: '+gatherHint(nextRes.mat);
+      return lead+'Open the Research tab and buy '+nextRes.name+'.'; }
     const weakType=g.sections.find(x=>SECTION_TYPES[x.type].strength<SECTION_TYPES[bestType].strength);
-    if(weakType)return 'Too weak for '+R.name+': select a '+SECTION_TYPES[weakType.type].name+' in Build and rebuild it as '+SECTION_TYPES[bestType].name+'.';
+    if(weakType){ const cost=SECTION_TYPES[bestType].cost; if(!canAfford(cost))return 'Rebuilding as '+SECTION_TYPES[bestType].name+' needs '+shortOf(cost)+' more: '+gatherHint(cost);
+      return 'Too weak for '+R.name+': in Build, press Rebuild all as '+SECTION_TYPES[bestType].name+' (or select one section and rebuild it).'; }
     return 'Walls are damaged: keep builders on repair until strength reaches '+R.req+'.';
   }
   const ero=erosionRate(), rep=jobPower('build')*5*m.build;
   if(!g.sections.some(x=>x.progress<1)&&ero>rep)return 'The dam is losing ground ('+(rep-ero).toFixed(1)+' hp/day): add builders or rebuild stick walls as something tougher.';
   if(idle()>0)return idle()+' idle beaver'+(idle()>1?'s':'')+': give them jobs in the Beavers tab.';
+  if(g.beavers>=housing()&&canAfford(lodgeCost())&&fb>=0.5)return 'Lodges are full: build a lodge ('+costText(lodgeCost())+') in the Beavers tab so kits can grow up.';
   return null;
 }
+// which materials a cost is short by, and who gathers them
+function shortOf(cost){ return Object.entries(cost||{}).filter(([k,v])=>g.res[k]<v).map(([k,v])=>Math.ceil(v-g.res[k])+' '+k).join(' and '); }
+function gatherHint(cost){ const k=Object.keys(cost||{}).find(k=>g.res[k]<cost[k]); const job={wood:'wood',mud:'mud',stone:'stone',food:'forage'}[k]; if(!job)return 'gather some.'; const j=JOBS.find(x=>x.id===job); return (g.jobs[job]===0?'put a beaver on ':'more beavers on ')+j.name+'.'; }
 function gaugeHTML(R,built,str){
   const need=holdNeed(), ready=damReady();
   const nd=nudge(R,built,str), ndHtml=nd?'<div class="nudge">'+nd+'</div>':'';
@@ -1034,7 +1057,7 @@ function gaugeHTML(R,built,str){
   if(g.hold>0||ready){
     const pct=Math.round(g.hold/need*100);
     const rate=clamp(str/R.req,0.3,1);
-    return '<div id="gauge"><div class="lab"><span>Pond filling — hold the dam</span><b>'+Math.floor(g.hold)+'/'+need+' days</b></div><div class="track"><i class="hold" style="width:'+pct+'%"></i></div><div class="sub">Strength '+fmt(str)+'/'+R.req+(rate<1?' · leaking: filling at '+Math.round(rate*100)+'% speed':'')+' · below '+Math.round(R.req*0.8)+' the pond drains and the count restarts'+(breachChance()>0?' · a flash flood would breach '+Math.round(breachChance()*100)+'% of the time (tougher walls and Flood Channels lower it)':'')+' · storms drain a day of pond each</div>'+ndHtml+'</div>';
+    return '<div id="gauge"><div class="lab"><span>Pond filling — hold the dam</span><b>'+Math.floor(g.hold)+'/'+need+' days</b></div><div class="track"><i class="hold" style="width:'+pct+'%"></i></div><div class="sub" title="Below '+Math.round(R.req*0.8)+' strength the pond drains and the count restarts. Storms drain a day of pond each; floods halve it.">Strength '+fmt(str)+'/'+R.req+(rate<1?' · leaking: filling at '+Math.round(rate*100)+'% speed, repair to speed up':'')+(breachChance()>0?' · breach risk '+Math.round(breachChance()*100)+'%':'')+'</div>'+ndHtml+'</div>';
   }
   // building phase: show strength toward target, and what comes next
   const pct=clamp(str/R.req*100,0,100);
@@ -1048,21 +1071,20 @@ function renderTab(){
     const m=mults();
     const masters=g.roster.filter(b=>b.job!=='idle'&&tierOf(b)===2).length, skilled=g.roster.filter(b=>b.job!=='idle'&&tierOf(b)===1).length;
     h+='<h2>Workforce · '+idle()+' idle of '+g.beavers+'</h2>';
-    h+='<p class="note">Beavers learn on the job: 30 days makes them <b>Skilled</b> (+35%), 90 days <b>Master</b> (+80%). Experience is kept per role. '+(skilled||masters?'Now: '+skilled+' skilled, '+masters+' masters.':'')+'</p>';
-    h+='<p class="note">Erosion '+erosionRate().toFixed(1)+' hp/day vs repair '+(jobPower('build')*5*m.build).toFixed(1)+'/day. Repairs cost half a wall\'s materials per full rebuild. Work rate '+Math.round((0.6+g.morale/100*0.6)*100)+'% from morale'+(season()===3?' · winter slows food and building':'')+(active('drought')?' · drought: food −60%':'')+(active('storm')?' · storm: building −50%':'')+'</p>';
+    h+='<details class="note"><summary>Details: skills, erosion, work rate</summary><p class="note">Beavers learn on the job: 30 days makes them <b>Skilled</b> (+35%), 90 days <b>Master</b> (+80%). Experience is kept per role. '+(skilled||masters?'Now: '+skilled+' skilled, '+masters+' masters.':'')+'</p><p class="note">Erosion '+erosionRate().toFixed(1)+' hp/day vs repair '+(jobPower('build')*5*m.build).toFixed(1)+'/day. Repairs cost half a wall\'s materials per full rebuild. Work rate '+Math.round((0.6+g.morale/100*0.6)*100)+'% from morale'+(season()===3?' · winter slows food and building':'')+(active('drought')?' · drought: food −60%':'')+(active('storm')?' · storm: building −50%':'')+'</p></details>';
     for(const j of JOBS){
       if(j.req&&!has(j.req))continue; if(j.id==='stone'&&rule().noStone)continue;
       const tc=tierCounts(j.id); const pips=(tc[1]||tc[2])?' · <span class="tiers">'+(tc[1]?'<b>★★</b>'+tc[1]+' ':'')+(tc[2]?'<b>★★★</b>'+tc[2]:'')+'</span>':'';
-      const extra=j.id==='wood'?' · '+g.trees.filter(v=>v>=0.6).length+' trees standing, '+g.trees.filter(v=>v<0.6).length+' regrowing':j.id==='forage'?' · plants seeds':'';
+      const extra=j.id==='wood'?' · '+g.trees.filter(v=>v>=0.6).length+' trees standing, '+g.trees.filter(v=>v<0.6).length+' regrowing'+(g.jobs.wood>=maxWood()?' · <span class="no">trees can\'t keep up with more</span>':''):j.id==='forage'?' · plants seeds':'';
       h+='<div class="row"><span class="jic">'+ico(j.icon)+'</span><span class="name">'+j.name+'<small>'+j.rate+' each'+extra+pips+'</small></span>'+
         '<button class="small" onclick="setJob(\''+j.id+'\',-1)" '+(g.jobs[j.id]?'':'disabled')+'>−</button><span class="cnt">'+g.jobs[j.id]+'</span>'+
-        '<button class="small" onclick="setJob(\''+j.id+'\',1)" '+(idle()>0?'':'disabled')+'>+</button></div>';
+        '<button class="small" onclick="setJob(\''+j.id+'\',1)" '+(idle()>0&&!(j.id==='wood'&&g.jobs.wood>=maxWood())?'':'disabled')+'>+</button></div>';
     }
     h+='<h2 style="margin-top:14px">Clan</h2>';
     if(has('expedition'))h+='<div class="row"><span class="jic">'+ico('beaver')+'</span><span class="name">'+(g.away?'Expedition away<small>5 beavers, back in '+g.away.days+' day'+(g.away.days>1?'s':'')+'</small>':'Send an expedition<small>5 beavers, 12 days, 20 food · returns wood'+(has('stone')?', stone':'')+' and science</small>')+'</span>'+(g.away?'':'<button class="small" onclick="sendExpedition()" '+(g.roster.length>=8&&canAfford({food:20})?'':'disabled')+'>Send</button>')+'</div>';
-    if(lostSections.length&&g.sections.length<river().width)h+='<div class="reward"><span class="name">Recover '+lostSections.length+' washed-away section'+(lostSections.length>1?'s':'')+'<small>Watch a short ad; they come back half-built</small></span><button class="small" onclick="offerRecover()">Watch</button></div>';
+    if(false)h+='<div class="reward"><span class="name">Recover '+lostSections.length+' washed-away section'+(lostSections.length>1?'s':'')+'<small>Watch a short ad; they come back half-built</small></span><button class="small" onclick="offerRecover()">Watch</button></div>';
     if(boostDays>0)h+='<div class="reward"><span class="name">Boost active<small>Double gathering for '+boostDays+' more day'+(boostDays>1?'s':'')+'</small></span></div>';
-    else if(g.day-lastBoostDay>=3)h+='<div class="reward"><span class="name">Gathering boost<small>Watch a short ad for two days of double food and wood</small></span><button class="small" onclick="offerBoost()">Watch</button></div>';
+    else if(g.day-lastBoostDay>=3&&g.damsBuilt>=1&&!Ads.isPremium())h+='<div class="reward"><span class="name">Gathering boost<small>Watch a short ad for two days of double food and wood</small></span><button class="small" onclick="offerBoost()">Watch</button></div>';
     h+='<div class="row"><span class="name">Food use<small>'+(g.beavers*0.5)+' / day · producing '+(jobPower('forage')*3*m.food).toFixed(1)+'</small></span></div>';
     h+='<div class="row"><span class="jic">'+ico('beaver')+'</span><span class="name">Recruit a beaver<small>Housing '+g.beavers+'/'+housing()+'</small></span><span class="cost">'+costText(recruitCost())+(recruitBlock()?'<br><span class="no">'+recruitBlock()+'</span>':'')+'</span><button class="small" onclick="recruit()" '+(canRecruit()?'':'disabled')+'>Recruit</button></div>';
     h+='<div class="row"><span class="jic">'+ico('wood')+'</span><span class="name">Expand stores<small>+'+storeCap()+' capacity for every material · now '+storage()+(g.stores?' from '+g.stores+' store'+(g.stores>1?'s':''):'')+'</small></span><span class="cost">'+costText(storeCost())+'</span><button class="small" onclick="buildStore()" '+(canAfford(storeCost())?'':'disabled')+'>Dig</button></div>';
@@ -1077,6 +1099,7 @@ function renderTab(){
     }
     h+='</div>';
     h+='<button class="primary" style="width:100%" onclick="addSection()" '+(g.sections.length<R.width&&canAfford(SECTION_TYPES[g.nextType].cost)?'':'disabled')+'>Add '+SECTION_TYPES[g.nextType].name+' ('+g.sections.length+'/'+R.width+')</button>';
+    { const weak=rebuildTargets(); if(weak.length){ const c=rebuildAllCost(weak); h+='<button style="width:100%;margin-top:6px" onclick="rebuildAll()" '+(canAfford(c)?'':'disabled')+'>Rebuild '+weak.length+' weaker section'+(weak.length>1?'s':'')+' as '+SECTION_TYPES[g.nextType].name+' ('+costText(c)+')</button>'; } }
     h+='<p class="note">Builders work sections in order, then repair. The current wears every wall down each day (faster in spring floods, frozen in winter); weak walls wash away. '+R.name+' needs '+R.width+' sections with total strength '+R.req+', held for '+holdNeed()+' days while the pond fills.</p>';
     h+='<h2>Dam sections</h2><div class="sections">';
     g.sections.forEach((s,i)=>{
@@ -1116,6 +1139,7 @@ $('#tab-toggle').onclick=()=>{ panelOpen=!panelOpen; syncDrawer(); };
 $('#cv').addEventListener('pointerdown',()=>{ if(isDrawer()&&panelOpen){ panelOpen=false; syncDrawer(); } },{passive:true});
 window.addEventListener('pointerdown',()=>{ lastTouch=performance.now(); },{capture:true,passive:true});
 window.addEventListener('resize',()=>syncDrawer());
+if(window.ResizeObserver)new ResizeObserver(()=>{ if(isDrawer()&&!panelOpen)syncDrawer(); }).observe($('#panel'));
 syncDrawer();
 document.querySelectorAll('[data-speed]').forEach(b=>b.onclick=()=>{g.speed=+b.dataset.speed;dirty=true});
 $('#btn-help').onclick=()=>{g.seenHelp=false;g.tut=Math.max(g.tut,0);dirty=true};
@@ -1145,7 +1169,9 @@ const streaks=[]; for(let i=0;i<70;i++)streaks.push({u:R0(),p:R0(),len:0.5+R0(),
 const rain=[]; for(let i=0;i<220;i++)rain.push({x:R0(),y:R0(),v:0.6+R0()*0.6});
 const sparks=[]; for(let i=0;i<40;i++)sparks.push({u:R0(),v:R0(),ph:R0()*6.28});
 const actors=[];
-let bgCache=null, bgKey='', flash=0, lastT=0;
+let bgCache=null, bgKey='', flash=0, lastT=0, lastPlate='';
+let noFlash=false; try{ noFlash=localStorage.getItem('damclan-noflash')==='1'; }catch(e){}
+function setNoFlash(v){ noFlash=!!v; try{ localStorage.setItem('damclan-noflash',v?'1':'0'); }catch(e){} dirty=true; }
 
 // ---- painted background plate. Geometry is in normalized plate coords.
 // Geometry is in normalized plate coords: hz = v of the river's far point, dam = v of the dam line,
@@ -1162,7 +1188,9 @@ function plateKey(){ if(!plateImgs.base)return null; const want=(active('storm')
 function plateFilter(){ const s=season(), pk=plateKey(); if(active('storm')||active('flood'))return pk==='storm'?'brightness(0.8) saturate(0.8)':'brightness(0.55) saturate(0.55) contrast(1.15)'; if(active('drought'))return 'sepia(0.55) saturate(1.25) brightness(1.05)'; if(pk!=='base')return 'saturate(1.05)'; return ['brightness(1.05) saturate(1.1)','saturate(1.15) contrast(1.05)','sepia(0.45) saturate(1.4) hue-rotate(-18deg) brightness(1.02)','saturate(0.2) brightness(1.18) contrast(0.92)'][s]; }
 function plateFit(im){ // cover by width; a scene taller than the plate keeps the full width and gets sky/water extensions instead of a crop
   const iw=im.naturalWidth, ih=im.naturalHeight, over=H>W?1.5:1.15; let sc=W/iw; if(H/ih>sc*over)sc=Math.min(H/ih, sc*over);
-  const dw=iw*sc, dh=ih*sc; const dy=H>dh?(H-dh)*0.45:(H-dh)/2; return {dx:(W-dw)/2, dy, dw, dh}; }
+  const dw=iw*sc, dh=ih*sc; let dy=H>dh?(H-dh)*0.45:(H-dh)/2;
+  if(H>W){ dy=clamp(H*0.36-PLATE_GEOM.dam*dh, -dh*0.3, Math.max(0,(H-dh)*0.45)); } // portrait: dam line at ~36% so it stays visible above the drawer
+  return {dx:(W-dw)/2, dy, dw, dh}; }
 function geom(){
   const pk=plateKey();
   if(pk){
@@ -1218,7 +1246,7 @@ function buildBackground(P,G){
   return c;
 }
 function drawLodge(x,y,s){
-  const im=spriteImgs.lodge, h=68*s, w=im?h*im.naturalWidth/im.naturalHeight:h*1.6;
+  const im=spriteImgs.lodge, h=100*s, w=im?h*im.naturalWidth/im.naturalHeight:h*1.6;
   ctx.fillStyle='rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(x,y+2,w*0.5,h*0.12,0,0,Math.PI*2); ctx.fill();
   if(im)ctx.drawImage(im,x-w/2,y-h,w,h); else { ctx.fillStyle='#6b4726'; ctx.beginPath(); ctx.ellipse(x,y,w/2,h*0.6,0,Math.PI,0); ctx.fill(); }
 }
@@ -1379,8 +1407,8 @@ function drawTreeProc(x,y,sc,growth,kind,seed,t,fall){
 function homeFor(i,G){ const [x,y]=lodgePos(i%Math.max(1,g.lodges),G); return [x+6,y+4]; }
 const GATHER_JOBS=new Set(['forage','wood','mud','stone']);
 function dropPointFor(job,i,G){ // where gatherers carry their haul: gatherers to a lodge, builders to the bank beside the dam
-  if(job==='build'){ const [l,r]=G.chan(G.damY); return i%2?[l-26,G.damY+6]:[r+26,G.damY+6]; }
-  const [hx,hy]=homeFor(i,G); return [hx+((i*31)%40)-20, hy+8];
+  if(job==='build'){ const y=G.damY-8-(i%3)*10; const [l,r]=G.chan(y); const k=(i%4)*18; return i%2?[Math.max(16,l-24-k),y]:[Math.min(W-16,r+24+k),y]; }
+  const [hx,hy]=homeFor(i,G); return [hx+((i*37)%72)-36, hy+6+(i%3)*7];
 }
 function targetFor(job,i,G,variant){
   const {hz,damY,chan}=G, R=river(); i=i+(variant||0)*13;
@@ -1389,10 +1417,10 @@ function targetFor(job,i,G,variant){
     case 'forage':{const y=G.plate?hz+12+seed*(damY-hz)*0.55:hz+50+seed*(H-hz-90); const [l]=chan(y); return [Math.max(20,l*0.12+seed2*l*0.55), y];}
     case 'wood':{ const m=[]; g.trees.forEach((v,k)=>{ if(v>=0.6)m.push(k) }); if(m.length){ const k=m[(i+(variant||0))%m.length]; const [tx,ty]=treePos(k,G); return [tx+(treeSlots[k].side?-16:16),ty+3]; }
       const y=G.plate?hz+12+seed*(damY-hz)*0.55:hz+50+seed*(H-hz-90); const [,r]=chan(y); return [r+(W-r)*(0.3+seed2*0.55), y]; }
-    case 'mud':{const y=damY+30+seed*(H-damY-50); const [l]=chan(y); return [l-14-seed2*36, y];}
-    case 'stone':{const y=damY+30+seed*(H-damY-50); const [,r]=chan(y); return [r+14+seed2*36, y];}
+    case 'mud':{const y=G.plate?hz+(damY-hz)*(0.5+seed*0.4):damY+30+seed*(H-damY-50); const [l]=chan(y); return [Math.max(16,l-20-seed2*44), y];}
+    case 'stone':{const y=G.plate?hz+(damY-hz)*(0.5+seed*0.4):damY+30+seed*(H-damY-50); const [,r]=chan(y); return [Math.min(W-16,r+20+seed2*44), y];}
     case 'build':{const [l,r]=chan(damY); const n=Math.max(1,g.sections.length); const k=g.sections.findIndex(s=>s.progress<1); const idx=k>=0?k:i%n; return [l+(r-l)*(idx+0.5)/R.width, damY-12-seed*6];}
-    case 'guard':{const y=damY+14; const [l,r]=chan(y); return i%2?[l-44-seed*30,y]:[r+44+seed*30,y];}
+    case 'guard':{const y=G.plate?damY-10-seed*12:damY+14; const [l,r]=chan(y); return i%2?[Math.max(16,l-34-seed*30),y]:[Math.min(W-16,r+34+seed*30),y];}
     case 'research':{ if(G.plate){const y=hz+8+seed*(damY-hz)*0.3; const [l]=chan(y); return [l*0.05+seed2*l*0.3,y];} const y=H*0.89+seed*H*0.05; return [W*0.10+seed2*W*0.14, y];}
     default:{ if(G.plate){const y=hz+8+seed*(damY-hz)*0.35; const [,r]=chan(y); return [r+(W-r)*(0.55+seed2*0.4),y];} const y=H*0.84+seed*H*0.1; return [W*0.72+seed2*W*0.22, y];}
   }
@@ -1457,7 +1485,7 @@ function drawDamEnds(dl,dr,damY,t){ // earth abutments where the wall meets each
   const seed=prng(1234); for(let k=0;k<6;k++){ const x=dl+(dr-dl)*seed(); ctx.globalAlpha=0.75; roundLog(x,damY+7+seed()*8,12+seed()*10,2.6,'#6d5238',(seed()-0.5)*0.5); ctx.globalAlpha=1; }
 }
 function drawSection(i,x,secW,damY,sec,t,ss){
-  const ty=SECTION_TYPES[sec.type], full=66*(ss||1)*ty.h, h=Math.max(5,full*sec.progress), seed=prng(i*31+7);
+  const ty=SECTION_TYPES[sec.type], full=88*(ss||1)*ty.h, h=Math.max(5,full*sec.progress), seed=prng(i*31+7);
   const x0=x, w=secW;
   if(sec.progress<1&&!sec.wrecked){ // scaffold ghost of final size
     ctx.strokeStyle='rgba(255,255,255,.55)'; ctx.setLineDash([4,4]); ctx.lineWidth=1; ctx.strokeRect(x0,damY-full,w,full+6); ctx.setLineDash([]);
@@ -1559,6 +1587,7 @@ function render(t){
   // ---- beavers
   const dt=Math.min(0.1,Math.max(0,t-lastT)); lastT=t;
   syncActors(G);
+  if((G.plate||'')!==lastPlate){ lastPlate=G.plate||''; actors.forEach((a,i)=>{ const [hx,hy]=homeFor(i,G); a.x=hx; a.y=hy; a.alpha=0; a.state='toWork'; [a.tx,a.ty]=targetFor(a.job,i,G,a.variant); }); }
   actors.forEach((a,i)=>updateActor(a,i,dt,G));
   if(!prevTrees)prevTrees=g.trees.slice();
   g.trees.forEach((v,i)=>{ if(prevTrees[i]>=0.6&&v===0){ treeAnim[i]={start:t,dir:treeSlots[i].side?-1:1}; Sfx.play('fell'); } prevTrees[i]=v; });
@@ -1567,7 +1596,7 @@ function render(t){
       const an=treeAnim[i]; if(an){ const k=Math.min(1,(t-an.start)/1.1); if(k<1){ drawTree(it.x,it.y+1,sc,1,sl.kind,sl.seed,t,an.dir*1.35*k*k); return; } delete treeAnim[i]; }
       drawTree(it.x,it.y+1,sc,v,sl.kind,sl.seed,t,null); return; }
     const a=it.a; if(a.alpha<=0)return; const sc=0.9+0.4*((a.y-hz)/(H-hz));
-    const nm=jobSprite(a.job,a.tier), hh=(G.plate?94:70)*sc*G.ss;
+    const nm=jobSprite(a.job,a.tier), hh=(G.plate?82:64)*sc*G.ss;
     drawSprite(nm,a.x,a.y,hh,t,{face:a.face,mode:a.mode,job:a.job,bob:a.bob,alpha:a.alpha});
     const baseNm=JOB_SPRITE[a.job]||'idle';
     if(a.tier>0&&nm===baseNm){ for(let k=0;k<=a.tier;k++){ const px=a.x+(k-a.tier/2)*7*sc, py=a.y-hh-6*sc; ctx.fillStyle='#1a0e05'; ctx.beginPath(); ctx.arc(px,py,3.2*sc,0,Math.PI*2); ctx.fill(); ctx.fillStyle=a.tier===2?'#ffd35a':'#c9c9c9'; ctx.beginPath(); ctx.arc(px,py,2.3*sc,0,Math.PI*2); ctx.fill(); } } });
@@ -1575,7 +1604,7 @@ function render(t){
   if(storm||flood){ ctx.strokeStyle='rgba(200,220,255,.45)'; ctx.lineWidth=1; for(const r of rain){ r.y=(r.y+r.v*0.02)%1; const x=r.x*W,y=r.y*H; ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-3,y+14);ctx.stroke(); if(y>damY&&y<H&&r.v>1.1){ ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.beginPath(); ctx.arc(x,y+14,3,Math.PI,0); ctx.stroke(); ctx.strokeStyle='rgba(200,220,255,.45)'; } }
     if(Math.random()<0.006)flash=1; }
   if(flash>0){ if(flash>=1)Sfx.play('crack'); // flash is set to 1 by the storm loop above or the lightning event, then fades
-    ctx.fillStyle='rgba(255,255,255,'+(flash*0.55)+')'; ctx.fillRect(0,0,W,H); if(flash>0.6){ ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=2; ctx.beginPath(); let lx=W*(0.3+Math.random()*0.4), ly=0; ctx.moveTo(lx,ly); for(let k=0;k<8;k++){ lx+=(Math.random()-0.5)*40; ly+=hz/8; ctx.lineTo(lx,ly); } ctx.stroke(); } flash-=0.08; }
+    ctx.fillStyle='rgba(255,255,255,'+(flash*(noFlash?0.12:0.4))+')'; ctx.fillRect(0,0,W,H); if(flash>0.6&&!noFlash){ ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=2; ctx.beginPath(); let lx=W*(0.3+Math.random()*0.4), ly=0; ctx.moveTo(lx,ly); for(let k=0;k<8;k++){ lx+=(Math.random()-0.5)*40; ly+=hz/8; ctx.lineTo(lx,ly); } ctx.stroke(); } flash-=0.08; }
   if(winter){ ctx.fillStyle='rgba(255,255,255,.85)'; for(const r of rain.slice(0,120)){ r.y=(r.y+r.v*0.003)%1; ctx.beginPath(); ctx.arc((r.x+Math.sin(t+r.v*9)*0.012)*W,r.y*H,1.2+r.v,0,Math.PI*2); ctx.fill(); } }
   if(drought){ gr=ctx.createLinearGradient(0,0,0,H); gr.addColorStop(0,'rgba(255,190,80,.18)'); gr.addColorStop(1,'rgba(255,150,60,.05)'); ctx.fillStyle=gr; ctx.fillRect(0,0,W,H); }
   // ---- lighting: warm sun wash + vignette
