@@ -143,16 +143,16 @@ details.note summary{cursor:pointer;color:var(--oak-l);font-weight:700;margin:4p
 #log .good{color:#9fe0a1} #log .bad{color:#ff8d84} #log .warn{color:#ffc266} #log .dire{color:#ff8b7a;font-weight:800}
 .overlay[hidden]{display:none}
 .overlay{position:absolute;inset:0;z-index:4;display:flex;align-items:center;justify-content:center;background:rgba(6,10,8,.66);padding:16px;backdrop-filter:blur(3px)}
-.overlay .box{background:linear-gradient(180deg,#f3e4c2,#e6d3a8);color:#3a2410;border:2px solid #8a5c31;border-radius:6px;padding:22px 26px;max-width:min(480px,100%);width:100%;max-height:100%;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.7),inset 0 0 40px rgba(120,80,30,.25);position:relative}
-.overlay .box::before,.overlay .box::after{content:'';position:absolute;left:-6px;right:-6px;height:12px;background:linear-gradient(180deg,var(--oak-l),var(--oak-d));border-radius:6px;box-shadow:0 3px 6px rgba(0,0,0,.5)}
-.overlay .box::before{top:-8px}.overlay .box::after{bottom:-8px}
+.overlay .box{background:linear-gradient(180deg,#f3e4c2,#e6d3a8);color:#3a2410;border:2px solid #8a5c31;border-radius:6px;padding:0 26px;max-width:min(480px,100%);width:100%;max-height:100%;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.7),inset 0 0 40px rgba(120,80,30,.25);position:relative}
+.overlay .box::before,.overlay .box::after{content:'';display:block;position:sticky;z-index:1;height:12px;margin-left:-32px;margin-right:-32px;background:linear-gradient(180deg,var(--oak-l),var(--oak-d));border-radius:6px;box-shadow:0 3px 6px rgba(0,0,0,.5)}
+.overlay .box::before{top:0;margin:0 -32px 16px}.overlay .box::after{bottom:0;margin:10px -32px 0}
 .overlay h1{font-size:32px;margin-bottom:6px;color:#6b3e14;text-shadow:0 1px 0 rgba(255,255,255,.5)}
 .overlay p{margin:8px 0;line-height:1.5}
 .overlay ul{margin:6px 0 12px 18px;padding:0;line-height:1.55}
 .overlay .note{color:#7a5a38}
 .overlay .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 /* the box scrolls on a phone and the actions used to sit far below the fold: pin them to its foot */
-.overlay .box>.btns{position:sticky;bottom:-22px;margin:12px -26px -22px;padding:12px 26px;background:linear-gradient(180deg,rgba(240,224,186,0),#eddfba 18%)}
+.overlay .box>.btns{position:sticky;bottom:0;margin:12px -26px -22px;padding:12px 26px 24px;background:linear-gradient(180deg,rgba(240,224,186,0),#eddfba 18%)}
 #adlayer{z-index:5} #adlayer .box{max-width:380px;text-align:center} #adlayer .tag{display:inline-block;background:#3a2410;color:var(--oak-l);border-radius:10px;padding:1px 8px;font-size:11px;font-weight:800;letter-spacing:.5px} #adlayer .btns{justify-content:center}
 .reward{display:flex;align-items:center;gap:8px;padding:7px 10px;margin:8px 0;border-radius:8px;background:rgba(74,163,201,.14);border:1px solid rgba(74,163,201,.4)} .reward .name{flex:1;font-weight:700;font-size:13px} .reward small{display:block;color:var(--muted);font-weight:600;font-size:12px}
 @media (max-width:1100px){
@@ -540,7 +540,7 @@ const BASE_STORAGE=150, DAY_MS=1800, SAVE_KEY='dam-nation-save-v1', SAVE_BAK='da
 //  the app build swaps in AdMob + RevenueCat without touching game code.
 // =====================================================================
 const PREMIUM_KEY='dam-nation-premium';
-const VERSION='0.25.1';
+const VERSION='0.25.2';
 const AD_AFTER_DAMS=1, BUY_AFTER_DAMS=2;   // rivers dammed before the first ad, and before the offer
 const REVIEW_AFTER_DAMS=2, REVIEW_KEY='damclan-reviewed';
 function maybeAskReview(){ // Play's own sheet, once per install, at a good moment
@@ -556,6 +556,9 @@ const DEMO=true, PLAY_URL='';
 let verTaps=0;
 function verTap(){ if(++verTaps<5)return; verTaps=0;
   const s=(window.Native&&window.Native.status)?window.Native.status():{build:'web',provider:Ads.provider,premium:Ads.isPremium(),sellable:Ads.canBuy(),price:Ads.priceText()};
+  // and the art side, so "the beavers are not animating" can be told apart from "the sheets never loaded"
+  s.art='plates '+Object.keys(plateImgs).length+'/'+Object.values(PLATES).filter(p=>p.src).length+', sprites '+Object.keys(spriteImgs).length+'/'+Object.keys(SPRITES).length+', anim '+Object.keys(animImgs).length+'/'+_animN+(perf.anim?' ('+(perf.anim-perf.start)+' ms)':' (loading)');
+  s.screen=W+'x'+H+' @'+(window.devicePixelRatio||1)+(isDrawer()?' drawer':' desktop')+' cam '+camStop();
   const txt='Dam Clan '+VERSION+'\n'+Object.keys(s).map(k=>k+': '+s[k]).join('\n');
   try{ alert(txt); }catch(e){ console.log(txt); } }
 const Ads={
@@ -1391,7 +1394,9 @@ const streaks=[]; for(let i=0;i<70;i++)streaks.push({u:R0(),p:R0(),len:0.5+R0(),
 const rain=[]; for(let i=0;i<220;i++)rain.push({x:R0(),y:R0(),v:0.6+R0()*0.6});
 const sparks=[]; for(let i=0;i<40;i++)sparks.push({u:R0(),v:R0(),ph:R0()*6.28});
 const actors=[];
-let bgCache=null, bgKey='', flash=0, lastT=0, lastPlate='', lastCam='';
+let bgCache=null, bgKey='', flash=0, lastT=0, lastPlate='', lastCam='', lastFit=null;
+function remapActors(o,n){ const mx=x=>n.dx+(x-o.dx)/o.dw*n.dw, my=y=>n.dy+(y-o.dy)/o.dh*n.dh;
+  for(const a of actors){ a.x=mx(a.x); a.y=my(a.y); a.tx=mx(a.tx); a.ty=my(a.ty); } }
 const CAM_KEY='damclan-cam';
 let camPref=null; try{ camPref=localStorage.getItem(CAM_KEY); }catch(e){}
 const camStop=()=>camPref||'valley';   // Valley is the default everywhere; Dam is the close-up you choose
@@ -1450,7 +1455,7 @@ function plateFit(im){
     const sc=Math.max(W/iw,H/ih), dw=iw*sc, dh=ih*sc;
     const [l,r]=damEdges(), cx=(l+r)/2;
     return {dx:clamp(W*0.5-cx*dw, Math.min(0,W-dw), 0),
-            dy:clamp(H*(H>W?DAM_ON_SCREEN_PORTRAIT:0.62)-P.dam*dh, Math.min(0,H-dh), 0), dw, dh};
+            dy:clamp(H*(H>W?DAM_ON_SCREEN_PORTRAIT():0.62)-P.dam*dh, Math.min(0,H-dh), 0), dw, dh};
   }
   // Valley: fit the width so the whole dam is in frame, then slide so the dam sits low in landscape
   // and above the drawer on portrait, and the head of the river never leaves the top.
@@ -1460,7 +1465,7 @@ function plateFit(im){
   const [dl,dr]=damEdges(), over=clamp(1/((dr-dl)+0.06), 1.15, 1.8);
   let sc=W/iw; if(H/ih>sc*over)sc=Math.min(H/ih, sc*over);
   const dw=iw*sc, dh=ih*sc;
-  const want=H*(H>W?DAM_ON_SCREEN_PORTRAIT:DAM_ON_SCREEN)-P.dam*dh;
+  const want=H*(H>W?DAM_ON_SCREEN_PORTRAIT():DAM_ON_SCREEN)-P.dam*dh;
   const floor=Math.min(0, H*0.04-P.hz*dh);
   const dy=clamp(want, floor, Math.max(0,(H-dh)*0.5));
   return {dx:(W-dw)/2, dy, dw, dh}; }
@@ -1468,7 +1473,10 @@ function plateFit(im){
 // The dam is built as an arc bowing downstream, so its middle sits nearer the viewer than its ends,
 // which buys pond and bank space back from the empty water below. damAt(u) is the dam line's y for
 // u in 0..1 across the channel; both ends stay on the flat line so the abutments still meet the banks.
-const DAM_BOW=0.34, DAM_ON_SCREEN=0.80, DAM_ON_SCREEN_PORTRAIT=0.42;
+const DAM_BOW=0.34, DAM_ON_SCREEN=0.80;
+// Portrait: with the drawer open only the top 38% of the scene shows, so the dam sits at 42%;
+// with it shut the whole screen is scene and the dam can sit low, like landscape.
+const DAM_ON_SCREEN_PORTRAIT=()=>panelOpen&&isDrawer()?0.42:0.64;
 // how big something standing at screen-y should be: 0.62 at the head of the river, 1.62 at the dam
 const BANK_TOP=0.30;   // nothing stands above this fraction of the band: above it the plate is forest
 const bankY=(G,f)=>G.hz+(G.damY-G.hz)*(BANK_TOP+(1-BANK_TOP)*clamp(f,0,1));
@@ -1507,6 +1515,11 @@ function bankX(u,y,G){ // map u in 0..1 to a bank x: left bank for u<0.5, right 
   const [l,r]=G.chan(y); const m=18;
   return u<0.5 ? (l-m)*(u*2) : (r+m)+(W-r-m)*((u-0.5)*2);
 }
+// average colour of the plate's top rows, so extra sky above it continues the painting
+const _plateSky={};
+function plateSky(k,im){ if(_plateSky[k])return _plateSky[k]; const c=document.createElement('canvas'); c.width=1; c.height=1; const o=c.getContext('2d');
+  o.drawImage(im,0,0,im.naturalWidth,Math.max(1,im.naturalHeight*0.02),0,0,1,1); const d=o.getImageData(0,0,1,1).data;
+  return _plateSky[k]='#'+[d[0],d[1],d[2]].map(v=>v.toString(16).padStart(2,'0')).join(''); }
 function buildBackground(P,G){
   const {hz}=G;
   const c=document.createElement('canvas'); c.width=W*DPR; c.height=H*DPR;
@@ -1515,7 +1528,9 @@ function buildBackground(P,G){
     const iw=im.naturalWidth, ih=im.naturalHeight;
     if(f.dy>0||f.dy+f.dh<H){ // portrait: the plate does not reach the top/bottom, so extend it with blurred copies of its own sky and water
       o.save(); o.filter=plateFilter()+' blur(18px)';
-      if(f.dy>0)o.drawImage(im,0,0,iw,ih*0.1,f.dx-40,-40,f.dw+80,f.dy+60);
+      if(f.dy>0){ // above the plate: more sky in the plate's own colour, not a blur of its clouds
+        const top=plateSky(G.plate,im), sg=o.createLinearGradient(0,0,0,f.dy+2); sg.addColorStop(0,mix(top,P.skyTop,0.45)); sg.addColorStop(1,top);
+        o.save(); o.filter='none'; o.fillStyle=sg; o.fillRect(0,0,W,f.dy+2); o.restore(); }
       if(f.dy+f.dh<H){ o.filter=plateFilter()+' blur(34px)'; o.drawImage(im,0,ih*0.94,iw,ih*0.06,f.dx-60,f.dy+f.dh-20,f.dw+120,H-(f.dy+f.dh)+60); }
       o.restore(); o.filter=plateFilter(); }
     o.drawImage(im,f.dx,f.dy,f.dw,f.dh); o.filter='none';
@@ -1625,7 +1640,7 @@ function drawSprite(name,x,y,h,t,a){
   if(st){ // real frames: no fake hop
     const alpha=a.alpha==null?1:a.alpha; if(alpha<=0)return true;
     const sh=animImgs[name+'-'+st], cell=sh.naturalHeight, n=Math.round(sh.naturalWidth/cell), fps=ANIM_FPS[st];
-    let f; if(st==='walk')f=Math.floor((a.dist||0)/Math.max(4,h*0.11)+a.bob)%n; // stride, not clock: half-speed patrols no longer moonwalk
+    let f; if(st==='walk')f=Math.floor((a.dist==null?t*fps:a.dist/Math.max(4,h*0.11))+a.bob)%n; // stride, not clock: half-speed patrols no longer moonwalk
     else { f=Math.floor(t*fps+a.bob*1.7); f%=(n-1)*2; if(f>=n)f=(n-1)*2-f; }
     const ch=h/0.98;
     ctx.save(); ctx.globalAlpha=alpha;
@@ -1706,7 +1721,10 @@ function targetFor(job,i,G,variant){
       const y=G.plate?bankY(G,seed*0.7):hz+50+seed*(H-hz-90); const [,r]=chan(y); return [r+(W-r)*(0.3+seed2*0.55), y]; }
     case 'mud':{const y=G.plate?bankY(G,0.3+seed*0.6):damY+30+seed*(H-damY-50); const [l]=chan(y); return [Math.max(16,l-20-seed2*44), y];}
     case 'stone':{const y=G.plate?bankY(G,0.3+seed*0.6):damY+30+seed*(H-damY-50); const [,r]=chan(y); return [Math.min(W-16,r+20+seed2*44), y];}
-    case 'build':{const [l,r]=chan(damY); const n=Math.max(1,g.sections.length); const k=g.sections.findIndex(s=>s.progress<1); const idx=k>=0?k:i%n; const u=(idx+0.5)/R.width; return [l+(r-l)*u, (G.damAt?G.damAt(u):damY)-12-seed*6];}
+    case 'build':{const [l,r]=chan(damY); const n=Math.max(1,g.sections.length); const k=g.sections.findIndex(s=>s.progress<1); const idx=k>=0?k:i%n; const u=(idx+0.5)/R.width;
+      // a builder stands on the section it is building - but until there is enough of it to stand on, it works from the nearer abutment rather than treading water mid-river
+      const sec=g.sections[idx]; if(!sec||sec.progress<0.15||sec.wrecked){ const left=u<0.5; return [left?l-14*G.ss-seed*10:r+14*G.ss+seed*10, damY-6-seed*8]; }
+      return [l+(r-l)*u, (G.damAt?G.damAt(u):damY)-12-seed*6];}
     case 'guard':{const y=G.plate?damY-10-seed*12:damY+14; const [l,r]=chan(y); return i%2?[Math.max(16,l-34-seed*30),y]:[Math.min(W-16,r+34+seed*30),y];}
     case 'research':{ if(G.plate){const y=bankY(G,seed*0.35); const [,r]=chan(y); return [Math.min(W-20,r+(W-r)*(0.1+seed2*0.35)),y];} const y=H*0.89+seed*H*0.05; return [W*0.10+seed2*W*0.14, y];}
     default:{ if(G.plate){const y=bankY(G,0.05+seed*0.4); const [,r]=chan(y); return [r+(W-r)*(0.55+seed2*0.4),y];} const y=H*0.84+seed*H*0.1; return [W*0.72+seed2*W*0.22, y];}
@@ -1810,7 +1828,7 @@ function render(t){
   const G=geom(), {hz,damY,chan,damAt}=G, R=river(), s=season();
   const storm=active('storm'), flood=active('flood'), drought=active('drought'), winter=s===3;
   const P=palette();
-  const key=W+'x'+H+':'+s+':'+(storm||flood)+':'+drought+':'+(G.plate||'proc');
+  const key=W+'x'+H+':'+s+':'+(storm||flood)+':'+drought+':'+(G.plate||'proc')+':'+(G.fit?G.fit.dy:0);
   if(key!==bgKey){ bgCache=buildBackground(P,G); bgKey=key; }
   if(bgCache&&bgCache.width>0&&bgCache.height>0)ctx.drawImage(bgCache,0,0,W,H);
   // ---- water
@@ -1912,6 +1930,8 @@ function render(t){
   syncActors(G);
   if(G.plate&&(!lastPlate||camStop()!==lastCam)){ lastPlate=G.plate; lastCam=camStop();
     actors.forEach((a,i)=>{ const [hx,hy]=homeFor(i,G); a.x=hx; a.y=hy; a.alpha=0; a.state='toWork'; [a.tx,a.ty]=targetFor(a.job,i,G,a.variant); }); }
+  else if(G.plate&&lastFit&&(lastFit.dx!==G.fit.dx||lastFit.dy!==G.fit.dy||lastFit.dw!==G.fit.dw))remapActors(lastFit,G.fit);
+  if(G.plate)lastFit=G.fit;
   actors.forEach((a,i)=>updateActor(a,i,dt,G));
   if(!prevTrees)prevTrees=g.trees.slice();
   g.trees.forEach((v,i)=>{ if(prevTrees[i]>=0.6&&v===0){ treeAnim[i]={start:t,dir:treeSlots[i].side?-1:1}; Sfx.play('fell'); } prevTrees[i]=v; });
@@ -1921,7 +1941,7 @@ function render(t){
       drawTree(it.x,it.y+1,sc,v,sl.kind,sl.seed,t,null); return; }
     const a=it.a; if(a.alpha<=0)return; const sc=depthScale(a.y,G);
     const nm=jobSprite(a.job,a.tier), hh=(G.plate?82:64)*sc*G.ss;
-    drawSprite(nm,a.x,a.y,hh,t,{face:a.face,mode:a.mode,job:a.job,bob:a.bob,alpha:a.alpha});
+    drawSprite(nm,a.x,a.y,hh,t,{face:a.face,mode:a.mode,job:a.job,bob:a.bob,alpha:a.alpha,dist:a.dist});
     const baseNm=JOB_SPRITE[a.job]||'idle';
     if(a.tier>0&&nm===baseNm){ for(let k=0;k<=a.tier;k++){ const px=a.x+(k-a.tier/2)*7*sc, py=a.y-hh-6*sc; ctx.fillStyle='#1a0e05'; ctx.beginPath(); ctx.arc(px,py,3.2*sc,0,Math.PI*2); ctx.fill(); ctx.fillStyle=a.tier===2?'#ffd35a':'#c9c9c9'; ctx.beginPath(); ctx.arc(px,py,2.3*sc,0,Math.PI*2); ctx.fill(); } } });
   // ---- weather
